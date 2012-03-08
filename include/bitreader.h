@@ -33,7 +33,7 @@ void bitreader_buffer_clear(BitReader *inst);
 
 int bitreader_buffer_truncate_to_byte(BitReader *inst);
 
-int bitreader_buffer_giveback(BitReader *inst);
+int bitreader_buffer_giveback(BitReader *inst, int clean_buffer);
 
 
 int bitreader_read_integer_bits(BitReader *inst, int bits_wanted, uint64_t *bits_storage);

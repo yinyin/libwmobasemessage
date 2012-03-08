@@ -110,11 +110,12 @@ int bitreader_buffer_truncate_to_byte(BitReader *inst)
  *
  * Argument:
  *    BitReader *inst - BitReader 物件
+ *    int clean_buffer - 是否要一併清除 buffer 內容 - 0: 不清空, 1: 清空
  *
  * Return:
  *    放回資料流的 byte 數
  * */
-int bitreader_buffer_giveback(BitReader *inst)
+int bitreader_buffer_giveback(BitReader *inst, int clean_buffer)
 {
 	int bytecount;
 
@@ -133,7 +134,9 @@ int bitreader_buffer_giveback(BitReader *inst)
 		#endif
 	}
 
-	bitreader_buffer_clear(inst);	/* clear buffer */
+	if( (0 != clean_buffer)	/* on request */
+		|| (0 >= (inst->bit_buffer_remain -= (bytecount * 8))) )	/* or, buffer empty-ed */
+	{ bitreader_buffer_clear(inst);	/* clear buffer */ }
 
 	return bytecount;
 }
