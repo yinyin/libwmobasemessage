@@ -7,7 +7,7 @@
 #include "bitreader.h"
 
 
-#define DUMP_DEBUG_MSG 1
+#define __DUMP_DEBUG_MSG 1
 
 
 /** 重置 BitReader 資料結構
@@ -127,7 +127,7 @@ int bitreader_buffer_giveback(BitReader *inst)
 
 		inst->bit_buffer_remain = 0;
 
-		#if DUMP_DEBUG_MSG
+		#if __DUMP_DEBUG_MSG
 			fprintf(stderr, "INFO: release bits from bitbuffer, bytes=%d @[%s:%d]\n", bytecount, __FILE__, __LINE__);
 		#endif
 
@@ -200,7 +200,7 @@ static int __bitreader_buffer_refill(BitReader *inst)
 	inst->blob_current_ptr += bytes_to_read;
 	inst->bit_buffer_remain = (bytes_to_read * 8);
 
-	#if DUMP_DEBUG_MSG
+	#if __DUMP_DEBUG_MSG
 		fprintf(stderr, "INFO: refill bits buffer, buffer=0x%016llX, remain=%d @[%s:%d]\n", (long long unsigned int)(aux), inst->bit_buffer_remain, __FILE__, __LINE__);
 	#endif
 
@@ -268,7 +268,7 @@ static int __bitreader_buffer_read_uint64(BitReader *inst, int bits_wanted, uint
 
 	*bits_storage = result_bits;
 
-	#if DUMP_DEBUG_MSG
+	#if __DUMP_DEBUG_MSG
 		fprintf(stderr, "INFO: read bits, bits=0x%016llX, written=%d, buffer=0x%016llX, remain=%d @[%s:%d]\n", (long long unsigned int)(result_bits), written_bits, (long long unsigned int)(inst->bit_buffer), inst->bit_buffer_remain, __FILE__, __LINE__);
 	#endif
 
@@ -353,7 +353,7 @@ int bitreader_read_string_bits(BitReader *inst, char * result_chars, int char_co
 
 	*char_storage_ptr = '\0';
 
-	#if DUMP_DEBUG_MSG
+	#if __DUMP_DEBUG_MSG
 		fprintf(stderr, "INFO: return string: char_count=%d, char_bits=%d, (%s) @[%s:%d]\n", char_count, char_bits, result_chars, __FILE__, __LINE__);
 	#endif
 

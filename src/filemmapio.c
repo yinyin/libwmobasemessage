@@ -15,13 +15,19 @@
 #include "filemmapio.h"
 
 
+#define __DUMP_DEBUG_MSG 0
+
+
 /** 最大檔案大小，超過此值將無法打開 */
 #define FILE_SIZE_LIMIT 8192
+
 
 
 static void __print_errno_string(const char * msg, const char * subject_filename, const char * src_file, int src_line, int errno_val)
 {
 	char errno_strbuf[1024];
+
+#if __DUMP_DEBUG_MSG
 
 	memset(errno_strbuf, 0, 1024);
 	strerror_r(errno_val, errno_strbuf, 1023);
@@ -33,6 +39,8 @@ static void __print_errno_string(const char * msg, const char * subject_filename
 	{ fprintf(stderr, "%s: %s [@%s:%d]\n", msg, errno_strbuf, src_file, src_line); }
 	else
 	{ fprintf(stderr, "%s (file name: %s): %s @[%s:%d]\n", msg, subject_filename, errno_strbuf, src_file, src_line); }
+
+#endif	/* __DUMP_DEBUG_MSG */
 
 	return;
 }
@@ -101,7 +109,10 @@ void * open_file_mmap(const char * filename, int * fd_ptr, uint32_t * filesize_p
 	/* {{{ create mmap */
 	if( (filesize <= 0) || (filesize > FILE_SIZE_LIMIT) )
 	{	/* file too large */
-		fprintf(stderr, "ERR: file too large (> %d), (filename=[%s], size=%lld) @[%s:%d]\n", FILE_SIZE_LIMIT, filename, (long long int)(filesize), __FILE__, __LINE__);
+		#if __DUMP_DEBUG_MSG
+			fprintf(stderr, "ERR: file too large (> %d), (filename=[%s], size=%lld) @[%s:%d]\n", FILE_SIZE_LIMIT, filename, (long long int)(filesize), __FILE__, __LINE__);
+		#endif
+
 		close(fd);
 
 		return NULL;
