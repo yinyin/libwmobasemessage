@@ -25,9 +25,8 @@
 
 static void __print_errno_string(const char * msg, const char * subject_filename, const char * src_file, int src_line, int errno_val)
 {
-	char errno_strbuf[1024];
-
 #if __DUMP_DEBUG_MSG
+	char errno_strbuf[1024];
 
 	memset(errno_strbuf, 0, 1024);
 	strerror_r(errno_val, errno_strbuf, 1023);
