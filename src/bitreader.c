@@ -82,6 +82,7 @@ int bitreader_set_current_location(BitReader *inst, void * current, int clean_bu
 void bitreader_buffer_clear(BitReader *inst)
 {
 	inst->bit_buffer_remain = 0;
+	inst->bit_buffer = 0L;
 	return;
 }
 
@@ -105,7 +106,7 @@ int bitreader_buffer_truncate_to_byte(BitReader *inst)
 	return bit_to_drop;
 }
 
-/** 將 buffer 中的位元組放回資料流，未滿 1 byte 的位元會被捨棄
+/** 將 buffer 中的位元組放回資料流，未滿 1 byte 的位元會被捨棄，完成後現有的 buffer 內容會清空捨棄
  *
  * Argument:
  *    BitReader *inst - BitReader 物件
@@ -115,26 +116,26 @@ int bitreader_buffer_truncate_to_byte(BitReader *inst)
  * */
 int bitreader_buffer_giveback(BitReader *inst)
 {
+	int bytecount;
+
+	bytecount = 0;
+
 	if(inst->bit_buffer_remain >= 8)
 	{
-		int bytecount;
-
 		bytecount = (inst->bit_buffer_remain / 8);
 		inst->blob_current_ptr -= bytecount;
 
 		if(inst->blob_current_ptr < inst->blob_start_ptr)
 		{ inst->blob_current_ptr = inst->blob_start_ptr; }
 
-		inst->bit_buffer_remain = 0;
-
 		#if __DUMP_DEBUG_MSG
 			fprintf(stderr, "INFO: release bits from bitbuffer, bytes=%d @[%s:%d]\n", bytecount, __FILE__, __LINE__);
 		#endif
-
-		return bytecount;
 	}
 
-	return 0;
+	bitreader_buffer_clear(inst);	/* clear buffer */
+
+	return bytecount;
 }
 
 
