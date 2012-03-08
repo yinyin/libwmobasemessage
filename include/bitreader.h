@@ -1,6 +1,8 @@
 #ifndef __YKX_BIT_READER_H__
 #define __YKX_BIT_READER_H__ 1
 
+/** Defines bit reading functions and data structure */
+
 #include <stdint.h>
 
 

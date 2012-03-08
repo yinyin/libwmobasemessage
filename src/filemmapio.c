@@ -15,6 +15,7 @@
 #include "filemmapio.h"
 
 
+/** 最大檔案大小，超過此值將無法打開 */
 #define FILE_SIZE_LIMIT 8192
 
 
