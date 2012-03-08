@@ -73,6 +73,22 @@ int bitreader_set_current_location(BitReader *inst, void * current, int clean_bu
 	return 0;
 }
 
+/** 設定讀取指標位置到資料塊開頭，並清除 buffer 內容
+ *
+ * Argument:
+ *    BitReader *inst - BitReader 物件
+ *
+ * Return:
+ *    0  - 正常結束
+ * */
+int bitreader_rewind(BitReader *inst)
+{
+	inst->blob_current_ptr = inst->blob_start_ptr;
+	bitreader_buffer_clear(inst);
+
+	return 0;
+}
+
 
 /** 清除且捨棄目前放在 buffer 中的 bits
  *

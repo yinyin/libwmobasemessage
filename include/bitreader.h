@@ -28,6 +28,8 @@ void bitreader_init(BitReader *inst, void * p_blob_start, int blob_size);
 
 int bitreader_set_current_location(BitReader *inst, void * current, int clean_buffer);
 
+int bitreader_rewind(BitReader *inst);
+
 
 void bitreader_buffer_clear(BitReader *inst);
 
