@@ -90,6 +90,48 @@ int bitreader_rewind(BitReader *inst)
 }
 
 
+/** 取得目前指標位置與資料流開頭的偏移量
+ *
+ * Argument:
+ *    BitReader *inst - BitReader 物件
+ *
+ * Return:
+ *    偏移量
+ * */
+int64_t bitreader_get_current_offset(BitReader *inst)
+{
+	int64_t offset;
+
+	offset = (int64_t)(inst->blob_current_ptr - inst->blob_start_ptr);
+
+	return offset;
+}
+
+/** 將目前指標位置移到指定的偏移量處
+ *
+ * Argument:
+ *    BitReader *inst - BitReader 物件
+ *    int64_t offset - 偏移量
+ *    int clean_buffer - 是否要一併清除 buffer 內容 - 0: 不清空, 1: 清空
+ *
+ * Return:
+ *     0 - 正常結束
+ *    -1 - 指標超出資料塊範圍
+ *    -2 - 偏移量為負數
+ * */
+int bitreader_set_current_offset(BitReader *inst, int64_t offset, int clean_buffer)
+{
+	void *proposed_pointer;
+
+	if(offset < 0)
+	{ return -2; }
+
+	proposed_pointer = inst->blob_start_ptr + (size_t)(offset);
+
+	return bitreader_set_current_location(inst, proposed_pointer, clean_buffer);
+}
+
+
 /** 清除且捨棄目前放在 buffer 中的 bits
  *
  * Argument:

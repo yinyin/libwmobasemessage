@@ -30,6 +30,10 @@ int bitreader_set_current_location(BitReader *inst, void * current, int clean_bu
 
 int bitreader_rewind(BitReader *inst);
 
+int64_t bitreader_get_current_offset(BitReader *inst);
+
+int bitreader_set_current_offset(BitReader *inst, int64_t offset, int clean_buffer);
+
 
 void bitreader_buffer_clear(BitReader *inst);
 
