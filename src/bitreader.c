@@ -365,7 +365,7 @@ int bitreader_read_integer_bits(BitReader *inst, int bits_wanted, uint64_t *bits
  *    int char_bits - 一個字元的位元數
  *
  * Return:
- *    成功讀取的位元數，失敗時傳回負值
+ *    成功讀取的字元數，失敗時傳回負值
  *    -1 - 資料流已經關閉
  *    -2 - 指定的字元數或是單一字元位元數超過可讀取能力
  *    -3, -4 - 讀取位元組時發生錯誤
