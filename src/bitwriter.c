@@ -274,6 +274,62 @@ int bitwriter_write_integer_bits(BitWriter * bufobj, uint64_t writting_value, in
 	return bits_written;
 }
 
+/** 以指定的字元寬度寫出指定數量的字元
+ *
+ * Argument:
+ *    BitWriter *bufobj - BitWriter 物件
+ *    char * target_chars - 指向要寫出的字串的指標
+ *    int char_count - 要寫出的字元數
+ *    int char_bits - 寫出時每字元的位元數
+ *    int *errno_valptr - 當錯誤時存放 errno 的變數的指標
+ *
+ * Return:
+ *    寫出的 bit 數，當異常時 (一般而言是在緩衝區滿寫入檔案時發生) 傳回 -1
+ * */
+int bitwriter_write_string_bits(BitWriter * bufobj, char * target_chars, int char_count, int char_bits, int *errno_valptr)
+{
+	int char_write_count;
+	char * char_storage_ptr;
+	
+	if( (char_count < 0) || (char_bits < 0) || (char_bits > 64) )
+	{ return -2; }
+	
+	char_write_count = char_count;
+	char_storage_ptr = target_chars;
+	
+	if(8 == char_bits)
+	{
+		while(8 <= char_write_count) {
+			uint64_t aux_bits;
+			int ret;
+			
+			aux_bits = *((uint64_t *)(char_storage_ptr));
+			aux_bits = be64toh(aux_bits);
+			
+			if(0 > (ret = bitwriter_write_integer_bits(bufobj, aux_bits, 64, errno_valptr)))
+			{ return -3; }
+			
+			char_storage_ptr += 8;
+			char_write_count -= 8;
+		}
+	}
+	
+	while(char_write_count > 0) {
+		uint64_t aux_bits;
+		int ret;
+		
+		aux_bits = ((uint64_t)(*char_storage_ptr)) & 0xFFL;
+		
+		if(0 > (ret = bitwriter_write_integer_bits(bufobj, aux_bits, char_bits, errno_valptr)))
+		{ return -4; }
+		
+		char_storage_ptr++;
+		char_write_count--;
+	}
+	
+	return char_count;
+}
+
 
 
 /*
