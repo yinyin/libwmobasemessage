@@ -10,6 +10,8 @@
 #define __DUMP_DEBUG_MSG 0
 
 
+/* {{{ search abbr heading ------------------------------------------ */
+
 #define _SEARCHABBRHEDG_MIN_LEN (4+1+4+1+6+3)
 
 #define _EVALABBRHEDG_INPUT_NCHR 0
@@ -355,6 +357,180 @@ void * search_abbr_heading(void * start, void * bound, int * heading_len_ptr, ui
 
 	return NULL;
 }
+
+/* }}} search abbr heading ------------------------------------------ */
+
+
+/* {{{ search BUFR indicator ---------------------------------------- */
+
+#define _EVALBUFRIDENTN_INPUT_BCHR 0
+#define _EVALBUFRIDENTN_INPUT_UCHR 1
+#define _EVALBUFRIDENTN_INPUT_FCHR 2
+#define _EVALBUFRIDENTN_INPUT_RCHR 3
+
+#define _EVALBUFRIDENTN_STATE_END 4
+
+/* {{{ status transition table
+--------
+import re
+
+IN_MAP = {'BCHR': 0, 'UCHR': 1, 'FCHR': 2, 'RCHR': 3}
+
+x = """
+ 0 BCHR 1
+ 1 UCHR 2
+ 2 FCHR 3
+ 3 RCHR 4
+ 4 =END-STATE
+"""
+
+max_state = 4
+max_input = 3
+
+r = re.compile("\s*([0-9]+)\s+([A-Z][A-Z0-9]*)\s+([0-9]+)\s*")
+result = [ [0 for i in range(1+max_state)] for j in range(1+max_input) ]
+
+for l in x.split("\n"):
+	m = r.match(l)
+	if m is not None:
+		try:
+			xf = int(m.group(1))
+			xt = int(m.group(3))
+			in_symb = m.group(2)
+			in_v = IN_MAP[in_symb]
+			result[in_v][xf] = xt
+		except Exception as e:
+			print ">>> line = %r" % (l,)
+			raise e
+
+for in_v in range(1+max_input):
+	print "\t{", ", ".join([ ("%2d"%xt) for xt in result[in_v] ]), "},"
+
+--------
+}}} */
+
+
+static int _BUFR_IDENTIFICATION_SEARCHING_TBL[4][5] = {
+	{  1,  0,  0,  0,  0 },
+	{  0,  2,  0,  0,  0 },
+	{  0,  0,  3,  0,  0 },
+	{  0,  0,  0,  4,  0 }
+};
+
+static int __translate_input_for_search_bufr_identification(char input_ch)
+{
+	int input_val;
+
+	input_val = -1;
+
+	if( 'B' == input_ch )
+	{ input_val = _EVALBUFRIDENTN_INPUT_BCHR; }
+	else if( 'U' == input_ch )
+	{ input_val = _EVALBUFRIDENTN_INPUT_UCHR; }
+	else if( 'F' == input_ch )
+	{ input_val = _EVALBUFRIDENTN_INPUT_FCHR; }
+	else if( 'R' == input_ch )
+	{ input_val = _EVALBUFRIDENTN_INPUT_RCHR; }
+
+	#if __DUMP_DEBUG_MSG
+		fprintf(stderr, ">> ... INPUT_CHAR=0x%02X, VAL=%d [@%s:%d]\n", input_ch, input_val, __FILE__, __LINE__);
+	#endif	/* __DUMP_DEBUG_MSG */
+
+	return input_val;
+}
+
+static int __lookup_next_state_for_search_bufr_identification(int input_val, int current_state)
+{
+	int next_state;
+
+	/* {{{ look up next state */
+	next_state = (-1 == input_val) ?
+		#if 0
+			-1:	/* disallow unknown characters, will-&-should cause state machine return NULL */
+		#else
+			0 :	/* allow unknown characters */
+		#endif
+			_BUFR_IDENTIFICATION_SEARCHING_TBL[input_val][current_state];
+	/* }}} look up next state */
+
+	#if __DUMP_DEBUG_MSG
+		fprintf(stderr, ">> CURR_STATE=%d, NEXT_STATE=%d [@%s:%d]\n", current_state, next_state, __FILE__, __LINE__);
+	#endif	/* __DUMP_DEBUG_MSG */
+
+	return next_state;
+}
+
+static char * _search_bufr_identification(char * p_start, char * p_bound)
+{
+	int current_state;
+	char * detected_bufridentn_start;
+	char * p;
+	char * b;
+
+	current_state = 0;
+	detected_bufridentn_start = NULL;
+	p = p_start;
+	b = p_bound;
+
+	while(p < b) {
+		char input_ch;
+		int input_val;
+		int next_state;
+
+		input_ch = *p;
+		input_val = __translate_input_for_search_bufr_identification(input_ch);	/* convert input character into value */
+		next_state = -1;
+
+		/* look up next state, return NULL if -1 is returned */
+		if( -1 == (next_state = __lookup_next_state_for_search_bufr_identification(input_val, current_state)) )
+		{ return NULL; }
+
+		/* actions for certain state transitions */
+		if(1 == next_state)
+		{	/* 偵測到 BUFR 字串起頭字元，紀錄並開始計數 */
+			detected_bufridentn_start = p;
+		}
+		else if( (0 == next_state) || (-1 == input_val) )
+		{ detected_bufridentn_start = NULL; }
+
+		if(_EVALBUFRIDENTN_STATE_END == next_state)
+		{	/* 進入結束狀態 */
+			return detected_bufridentn_start;
+		}
+
+
+		current_state = next_state;	/* transit state */
+
+		p++;
+	}
+
+	#if __DUMP_DEBUG_MSG
+		fprintf(stderr, ">> ### REACH END(TOP) OF STREAM [@%s:%d]\n", __FILE__, __LINE__);
+	#endif	/* __DUMP_DEBUG_MSG */
+
+	return NULL;
+}
+
+/** 在指定的資料流範圍中找尋 BUFR identification 字元
+ * 依據 WMO 306 規範 (WMO Manual on Codes, Volume I, International Codes, Part B-Binary Codes, WMO-No.306, FM 94-IX Ext. BUFR.)
+ *
+ * Argument:
+ * 	void * start - 起點指標
+ * 	void * bound - 終點指標
+ * */
+void * search_bufr_identification(void * start, void * bound)
+{
+	char * r;
+
+	r = _search_bufr_identification(start, bound);
+	#if __DUMP_DEBUG_MSG
+		fprintf(stderr, "...... result = %p [@%s:%d]\n", r, __FILE__, __LINE__);
+	#endif	/* __DUMP_DEBUG_MSG */
+
+	return (NULL != r) ? ((void *)(r)) : NULL;
+}
+
+/* }}} search BUFR indicator ---------------------------------------- */
 
 
 
