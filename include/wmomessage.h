@@ -43,6 +43,7 @@ typedef struct _T_WMOmessage_AbbrHeading {
 
 
 void * search_abbr_heading(void * start, void * bound, int * heading_len_ptr, uint32_t * heading_type_ptr, WMOmessage_AbbrHeading * parsed_info_ptr);
+void * search_bufr_identification(void * start, void * bound);
 
 
 #endif	/* #ifndef __YKX_WMO_MESSAGE__ */
