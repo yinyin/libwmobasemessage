@@ -46,6 +46,8 @@ int bitreader_read_integer_bits(BitReader *inst, int bits_wanted, uint64_t *bits
 
 int bitreader_read_string_bits(BitReader *inst, char * result_chars, int char_count, int char_bits);
 
+int bitreader_read_line(BitReader *inst, char * result_chars, int char_limit);
+
 
 void bitreader_region_set_start(BitReader *inst);
 

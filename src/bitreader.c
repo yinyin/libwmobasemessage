@@ -423,6 +423,55 @@ int bitreader_read_string_bits(BitReader *inst, char * result_chars, int char_co
 }
 
 
+/** 在限定的字元數內讀取一行字串傳回
+ * 注意: 換行符號也會存入緩衝
+ *
+ * Argument:
+ *    BitReader *inst - BitReader 物件
+ *    char * result_chars - 指向存放所讀取字串的變數的指標
+ *    int char_limit - 字元數目
+ *
+ * Return:
+ *    成功讀取的字元數，失敗時傳回負值
+ *    -1 - 資料流已經關閉
+ * */
+int bitreader_read_line(BitReader *inst, char * result_chars, int char_limit)
+{
+	char * p;
+	char * b;
+	char * char_storage_ptr;
+	int readed_char_count;
+
+	if(NULL == inst->blob_start_ptr)
+	{ return -1; }
+
+	bitreader_buffer_giveback(inst, 1);
+
+	char_storage_ptr = result_chars;
+	readed_char_count = 0;
+
+	p = (char *)(inst->blob_current_ptr);
+	b = (char *)(inst->blob_current_ptr + char_limit);
+
+	if( (void *)(b) > (inst->blob_regionbound_ptr) )
+	{ b = (char *)(inst->blob_regionbound_ptr); }
+
+	while(p < b) {
+		*char_storage_ptr = *p;
+		readed_char_count++;
+		
+		if('\n' == *p)
+		{ break; }
+		
+		p++;
+		char_storage_ptr++;
+	}
+
+	return readed_char_count;
+}
+
+
+
 /** 設定讀取區域限制起點
  *
  * Argument:
