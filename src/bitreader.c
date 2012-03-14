@@ -457,15 +457,18 @@ int bitreader_read_line(BitReader *inst, char * result_chars, int char_limit)
 	{ b = (char *)(inst->blob_regionbound_ptr); }
 
 	while(p < b) {
-		*char_storage_ptr = *p;
+		char c;
+		*char_storage_ptr = (c = *p);
 		readed_char_count++;
-		
-		if('\n' == *p)
-		{ break; }
-		
+
 		p++;
 		char_storage_ptr++;
+
+		if('\n' == c)
+		{ break; }
 	}
+
+	inst->blob_current_ptr = (void *)(p);
 
 	return readed_char_count;
 }
