@@ -479,10 +479,16 @@ int bitreader_read_line(BitReader *inst, char * result_chars, int char_limit)
  *
  * Argument:
  *    BitReader *inst - BitReader 物件
+ *    int offset - 與目前位置的偏移量
  * */
-void bitreader_region_set_start(BitReader *inst)
+void bitreader_region_set_start(BitReader *inst, int offset)
 {
-	inst->blob_regionstart_ptr = inst->blob_current_ptr;
+	void * p;
+
+	p = inst->blob_current_ptr + offset;
+
+	inst->blob_regionstart_ptr = ( (p >= inst->blob_start_ptr) && (p < inst->blob_bound_ptr) ) ? p : inst->blob_current_ptr;
+
 	return;
 }
 
