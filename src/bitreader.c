@@ -234,7 +234,7 @@ static int __bitreader_buffer_refill(BitReader *inst)
 		int r;
 
 		if( (r = (int)(inst->blob_regionbound_ptr - inst->blob_current_ptr)) < bytes_to_read )
-		{ bytes_to_read = r; }
+		{ bytes_to_read = (r > 0) ? r : 0; }
 	}
 
 	if(8 == bytes_to_read)
@@ -506,6 +506,10 @@ void bitreader_region_set_size(BitReader *inst, int region_size)
 
 		p = inst->blob_regionstart_ptr + region_size;	/* compute new region pointer */
 		inst->blob_regionbound_ptr = (p > inst->blob_bound_ptr) ? inst->blob_bound_ptr : p;	/* use global bound as region bound if computed bound too large */
+
+		#if __DUMP_DEBUG_MSG
+			fprintf(stderr, "INFO: set region size (start=%p, bound=%p) @[%s:%d]\n", inst->blob_regionstart_ptr, inst->blob_regionbound_ptr, __FILE__, __LINE__);
+		#endif
 	}
 	else
 	{
