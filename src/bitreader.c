@@ -8,6 +8,7 @@
 
 
 #define __DUMP_DEBUG_MSG 1
+#define __DUMP_DEBUG_MSG_DETAIL 0
 
 
 /** 重置 BitReader 資料結構
@@ -248,11 +249,11 @@ static int __bitreader_buffer_refill(BitReader *inst)
 		uint8_t *p;
 
 		p = (uint8_t *)(inst->blob_current_ptr);
-		aux = 0L;
+		aux = 0LL;
 
 		for(i = 0; i < bytes_to_read; i++) {
 			aux = aux << 8;
-			aux = aux | (((uint64_t)(p[i])) & 0x00000000000000FFL);
+			aux = aux | (((uint64_t)(p[i])) & 0x00000000000000FFLL);
 		}
 
 		aux = aux << (64 - (bytes_to_read*8));
@@ -294,7 +295,7 @@ static int __bitreader_buffer_read_uint64(BitReader *inst, int bits_wanted, uint
 	{ return -2; }
 
 	written_bits = 0;
-	result_bits = 0L;
+	result_bits = 0LL;
 
 	while(bits_wanted > 0) {
 		int bits_to_fetch;
@@ -307,6 +308,9 @@ static int __bitreader_buffer_read_uint64(BitReader *inst, int bits_wanted, uint
 		if(64 == bits_to_fetch)
 		{
 			result_bits = inst->bit_buffer;
+			#if __DUMP_DEBUG_MSG_DETAIL
+				fprintf(stderr, "fetching(eq64): result=0x%016llX\n", result_bits);
+			#endif	/* __DUMP_DEBUG_MSG_DETAIL */
 		}
 		else
 		{
@@ -316,11 +320,15 @@ static int __bitreader_buffer_read_uint64(BitReader *inst, int bits_wanted, uint
 
 			fetched_bits = inst->bit_buffer >> (64 - bits_to_fetch);
 			remained_bits = inst->bit_buffer << bits_to_fetch;
-			bitmask = (1L << bits_to_fetch) - 1L;
+			bitmask = (1LL << bits_to_fetch) - 1LL;
 
 			result_bits = (result_bits << bits_to_fetch) | (fetched_bits & bitmask);
 
 			inst->bit_buffer = remained_bits;
+
+			#if __DUMP_DEBUG_MSG_DETAIL
+				fprintf(stderr, "fetching(ne64): fetched=0x%016llX, remained=0x%016llX, bitmask=0x%016llX, result=0x%016llX, bits_to_fetch=%d\n", fetched_bits, remained_bits, bitmask, result_bits, bits_to_fetch);
+			#endif	/* __DUMP_DEBUG_MSG_DETAIL */
 		}
 
 		inst->bit_buffer_remain -= bits_to_fetch;
@@ -373,6 +381,7 @@ int bitreader_read_integer_bits(BitReader *inst, int bits_wanted, uint64_t *bits
 int bitreader_read_string_bits(BitReader *inst, char * result_chars, int char_count, int char_bits)
 {
 	int char_wanted;
+	int char_got;
 	char * char_storage_ptr;
 
 	if(NULL == inst->blob_start_ptr)
@@ -382,6 +391,7 @@ int bitreader_read_string_bits(BitReader *inst, char * result_chars, int char_co
 	{ return -2; }
 
 	char_wanted = char_count;
+	char_got = 0;
 	char_storage_ptr = result_chars;
 
 	/* {{{ loading bits as characters */
@@ -393,6 +403,7 @@ int bitreader_read_string_bits(BitReader *inst, char * result_chars, int char_co
 
 			if(0 > (ret = __bitreader_buffer_read_uint64(inst, 64, &result_bits)))
 			{ return -3; }
+			char_got += (ret / 8);
 
 			*((uint64_t *)(char_storage_ptr)) = htobe64(result_bits);
 			char_wanted -= 8;
@@ -406,8 +417,9 @@ int bitreader_read_string_bits(BitReader *inst, char * result_chars, int char_co
 
 		if(0 > (ret = __bitreader_buffer_read_uint64(inst, char_bits, &result_bits)))
 		{ return -4; }
+		char_got += (ret / char_bits);
 
-		*char_storage_ptr = (char)(result_bits & 0xFFL);
+		*char_storage_ptr = (char)(result_bits & 0xFFLL);
 		char_storage_ptr++;
 		char_wanted--;
 	}
@@ -419,7 +431,7 @@ int bitreader_read_string_bits(BitReader *inst, char * result_chars, int char_co
 		fprintf(stderr, "INFO: return string: char_count=%d, char_bits=%d, (%s) @[%s:%d]\n", char_count, char_bits, result_chars, __FILE__, __LINE__);
 	#endif
 
-	return char_count;
+	return char_got;
 }
 
 
