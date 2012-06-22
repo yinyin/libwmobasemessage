@@ -185,7 +185,7 @@ static int __bitwriter_flush_BitWriter(BitWriter * bufobj, int *errno_valptr)
 
 	bufobj->current_flush_ptr++;;
 	bufobj->bit_buffer_remain = 64;
-	bufobj->bit_buffer = 0L;
+	bufobj->bit_buffer = 0LL;
 
 	if( ((void *)(bufobj->current_flush_ptr)) >= ((void *)(bufobj->flush_block + BITWRITER_FLUSH_SIZE)) )
 	{
@@ -255,7 +255,7 @@ int bitwriter_write_integer_bits(BitWriter * bufobj, uint64_t writting_value, in
 			buffer_remain = bufobj->bit_buffer_remain;
 			bits_this_round = (bits_countdown < buffer_remain) ? bits_countdown : buffer_remain;
 
-			going_to_write = (writting_bits >> (64 - buffer_remain)) & (((0x1L << bits_this_round) - 1L) << (buffer_remain - bits_this_round));
+			going_to_write = (writting_bits >> (64 - buffer_remain)) & (((0x1LL << bits_this_round) - 1LL) << (buffer_remain - bits_this_round));
 			going_to_remain = writting_bits << bits_this_round;
 
 			bufobj->bit_buffer = bufobj->bit_buffer | going_to_write;
@@ -318,7 +318,7 @@ int bitwriter_write_string_bits(BitWriter * bufobj, char * target_chars, int cha
 		uint64_t aux_bits;
 		int ret;
 		
-		aux_bits = ((uint64_t)(*char_storage_ptr)) & 0xFFL;
+		aux_bits = ((uint64_t)(*char_storage_ptr)) & 0xFFLL;
 		
 		if(0 > (ret = bitwriter_write_integer_bits(bufobj, aux_bits, char_bits, errno_valptr)))
 		{ return -4; }
