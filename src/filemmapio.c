@@ -18,8 +18,8 @@
 #define __DUMP_DEBUG_MSG 0
 
 
-/** 最大檔案大小，超過此值將無法打開 */
-#define FILE_SIZE_LIMIT 8388608
+/** 最大檔案大小，超過此值將無法打開: 128 MiB = 134217728, 64 MiB = 67108864, 8 MiB = 8388608, 1 MiB = 1048576, 512 KiB = 524288 */
+#define FILE_SIZE_LIMIT 67108864
 
 
 
