@@ -331,6 +331,31 @@ int bitwriter_write_string_bits(BitWriter * bufobj, char * target_chars, int cha
 }
 
 
+/** 填補到位元組邊界
+ *
+ * Argument:
+ *    BitWriter *bufobj - BitWriter 物件
+ *    int *errno_valptr - 當錯誤時存放 errno 的變數的指標
+ *
+ * Return:
+ *    寫出的 bit 數，當異常時 (一般而言是在緩衝區滿寫入檔案時發生) 傳回 -1
+ * */
+int bitwriter_pad_to_byte(BitWriter * bufobj, int *errno_valptr)
+{
+	int bits_to_pad;
+
+	if(-1 == __bitwriter_flush_BitWriter(bufobj, errno_valptr))
+	{ return -1; }
+	
+	bits_to_pad = (bufobj->bit_buffer_remain) % 8;
+	
+	if(0 == bits_to_pad)	/* already at byte boundary */
+	{ return 0; }
+	
+	return bitwriter_write_integer_bits(bufobj, 0LL, bits_to_pad, errno_valptr);
+}
+
+
 
 /*
 vim: ts=4 sw=4 ai nowrap

@@ -34,6 +34,8 @@ int bitwriter_write_integer_bits(BitWriter * bufobj, uint64_t writting_value, in
 
 int bitwriter_write_string_bits(BitWriter * bufobj, char * target_chars, int char_count, int char_bits, int *errno_valptr);
 
+int bitwriter_pad_to_byte(BitWriter * bufobj, int *errno_valptr);
+
 
 
 #endif	/* #ifndef __YKX_BIT_WRITER_H__ */
