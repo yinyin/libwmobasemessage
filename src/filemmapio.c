@@ -56,7 +56,7 @@ static void __print_errno_string(const char * msg, const char * subject_filename
  * Return:
  * 	所取得的 MMAP I/O 指標，當失敗時傳回 NULL 並設定 ERRNO 值
  * */
-void * open_file_mmap(const char * filename, int * fd_ptr, uint32_t * filesize_ptr, int * errno_valptr)
+void * open_file_read_mmap(const char * filename, int * fd_ptr, uint32_t * filesize_ptr, int * errno_valptr)
 {
 	int fd;
 	off_t filesize;

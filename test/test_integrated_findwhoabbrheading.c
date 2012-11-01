@@ -14,7 +14,7 @@ int main(int argc, char ** argv)
 	int errnoval;
 	void * p;
 
-	if( NULL == (p = open_file_mmap(argv[1], &fd, &filesize, &errnoval)) )
+	if( NULL == (p = open_file_read_mmap(argv[1], &fd, &filesize, &errnoval)) )
 	{
 		fprintf(stderr, "ERR: cannot retrive mmap\n");
 		return 0;

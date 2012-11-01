@@ -13,7 +13,7 @@
  * */
 
 
-void * open_file_mmap(const char * filename, int * fd_ptr, uint32_t * filesize_ptr, int * errno_valptr);
+void * open_file_read_mmap(const char * filename, int * fd_ptr, uint32_t * filesize_ptr, int * errno_valptr);
 
 void close_file_mmap(void * mmap_ptr, int * fd_ptr, uint32_t * filesize_ptr);
 
