@@ -22,8 +22,18 @@
 #define FILE_SIZE_LIMIT 67108864
 
 
+/** 開啟要寫入的檔案時，預先放大檔案大小的基數值: 4 KiB = 12, 8 KiB = 13, 16 KiB = 14, 32 KiB = 15, 64 KiB = 16 */
+#define FILE_EXPAND_INCREMENT_STEP_IN_PWR2BITSCOUNT 12
 
-/** open file for MMAP I/O
+#define FILE_EXPAND_INCREMENT_STEP_VALUE (1 << FILE_EXPAND_INCREMENT_STEP_IN_PWR2BITSCOUNT)
+#define FILE_EXPAND_INCREMENT_STEP_MASK (FILE_EXPAND_INCREMENT_STEP_VALUE - 1)
+
+
+#define RESULT_FILE_PERMISSION ( S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH | S_IWOTH )
+
+
+
+/** open file for MMAP I/O read
  *
  * Argument:
  * 	const char * filename - 檔案名稱
@@ -126,6 +136,154 @@ void close_file_read_mmap(void * mmap_ptr, int * fd_ptr, uint32_t * filesize_ptr
 
 	*fd_ptr = 0;
 	*filesize_ptr = 0;
+}
+
+
+
+/** open file for MMAP I/O write
+ *
+ * Argument:
+ * 	const char * filename - 檔案名稱
+ * 	int * fd_ptr - 指向要儲存 file descriptor 的變數的指標
+ * 	uint32_t * origional_filesize_ptr - 指向要儲存原始檔案大小的變數的指標
+ * 	uint32_t * expanded_filesize_ptr - 指向要儲存擴展檔案大小的變數的指標
+ * 	int * errno_valptr - 指向要儲存 ERRNO 值的變數的指標
+ *
+ * Return:
+ * 	所取得的 MMAP I/O 指標，當失敗時傳回 NULL 並設定 ERRNO 值
+ * */
+void * open_file_write_mmap(const char * filename, int * fd_ptr, uint32_t * origional_filesize_ptr, uint32_t * expanded_filesize_ptr, int * errno_valptr)
+{
+	int fd;
+	off_t origional_filesize;
+	off_t expanded_filesize;
+	void * result_ptr;
+
+	/* {{{ clear out variables */
+	*fd_ptr = -1;
+	*origional_filesize_ptr = 0;
+	*expanded_filesize_ptr = 0;
+	*errno_valptr = 0;	/* clear errno pointer first */
+	result_ptr = NULL;
+	/* }}} clear out variables */
+
+	/* {{{ open file descriptor */
+	if( -1 == (fd = open(filename, O_RDWR|O_CREAT, RESULT_FILE_PERMISSION)) )
+	{
+		int errno_val;
+
+		*errno_valptr = (errno_val = errno);
+		__print_errno_string("ERR: cannot open file for write", filename, __FILE__, __LINE__, errno_val);	/* dump error message */
+
+		return NULL;
+	}
+
+	*fd_ptr = fd;
+	/* }}} open file descriptor */
+
+
+	/* {{{ get file size */
+	{
+		struct stat stat_buf;
+
+		if(-1 == fstat(fd, &stat_buf))
+		{
+			int errno_val;
+
+			*errno_valptr = (errno_val = errno);
+			__print_errno_string("ERR: cannot get file size", filename, __FILE__, __LINE__, errno_val);	/* dump error message */
+
+			close(fd);
+
+			return NULL;
+		}
+
+		origional_filesize = stat_buf.st_size;
+		*origional_filesize_ptr = ( (origional_filesize > 0) ? (uint32_t)(origional_filesize) : 0 );
+	}
+	/* }}} get file size */
+	
+	/* {{{ compute expanded file size */
+	expanded_filesize = (
+		( 0 != ((off_t)(FILE_EXPAND_INCREMENT_STEP_MASK) & origional_filesize) )
+			? ( ((origional_filesize >> FILE_EXPAND_INCREMENT_STEP_IN_PWR2BITSCOUNT) + (off_t)(1)) << FILE_EXPAND_INCREMENT_STEP_IN_PWR2BITSCOUNT )
+			: ( origional_filesize )
+	);
+	/* }}} compute expanded file size */
+
+	/* {{{ create mmap */
+	if( (origional_filesize < 0) || (origional_filesize > FILE_SIZE_LIMIT) || (expanded_filesize < 0) )
+	{	/* file too large */
+		#if __DUMP_DEBUG_MSG
+			fprintf(stderr, "ERR: file too large (> %d), (filename=[%s], orig_size=%lld, expand_size=%lld) @[%s:%d]\n", FILE_SIZE_LIMIT, filename, (long long int)(origional_filesize), (long long int)(expanded_filesize), __FILE__, __LINE__);
+		#endif
+
+		close(fd);
+
+		return NULL;
+	}
+
+	if(-1 == ftruncate(fd, expanded_filesize))
+	{
+		int errno_val;
+
+		*errno_valptr = (errno_val = errno);
+		__print_errno_string("ERR: cannot perform f-truncate", filename, __FILE__, __LINE__, errno_val);	/* dump error message */
+
+		close(fd);
+
+		return NULL;
+	}
+
+	if( MAP_FAILED == (result_ptr = mmap(NULL, (size_t)(expanded_filesize), PROT_READ|PROT_WRITE, MAP_PRIVATE, fd, 0)) )
+	{
+		int errno_val;
+
+		*errno_valptr = (errno_val = errno);
+		__print_errno_string("ERR: cannot perform file mapping", filename, __FILE__, __LINE__, errno_val);	/* dump error message */
+
+		close(fd);
+
+		return NULL;
+	}
+	/* }}} create mmap */
+
+	return result_ptr;
+}
+
+
+/** close MMAP I/O write file
+ *
+ * Argument:
+ * 	void * mmap_ptr - 指向 MMAP I/O 位址的指標
+ * 	int * fd_ptr - 指向存放 file descriptor 的變數的指標
+ * 	uint32_t * origional_filesize_ptr - 指向要儲存原始檔案大小的變數的指標
+ * 	uint32_t * expanded_filesize_ptr - 指向要儲存擴展檔案大小的變數的指標
+ *  uint32_t actual_filesize - 實際檔案應有的大小
+ * */
+void close_file_write_mmap(void * mmap_ptr, int * fd_ptr, uint32_t * origional_filesize_ptr, uint32_t * expanded_filesize_ptr, uint32_t actual_filesize)
+{
+	int fd;
+	
+	fd = *fd_ptr;
+	
+	/* {{{ close file */
+	munmap(mmap_ptr, (size_t)(*expanded_filesize_ptr));
+	
+	if(-1 == ftruncate(fd, (off_t)(actual_filesize)))
+	{
+		int errno_val;
+
+		errno_val = errno;
+		__print_errno_string("ERR: cannot perform f-truncate on closing", "[CLOSING_FILE]", __FILE__, __LINE__, errno_val);	/* dump error message */
+	}
+	
+	close(fd);
+	/* }}} close file */
+
+	*fd_ptr = 0;
+	*origional_filesize_ptr = 0;
+	*expanded_filesize_ptr = 0;
 }
 
 

@@ -18,6 +18,11 @@ void * open_file_read_mmap(const char * filename, int * fd_ptr, uint32_t * files
 void close_file_read_mmap(void * mmap_ptr, int * fd_ptr, uint32_t * filesize_ptr);
 
 
+void * open_file_write_mmap(const char * filename, int * fd_ptr, uint32_t * origional_filesize_ptr, uint32_t * expanded_filesize_ptr, int * errno_valptr);
+
+void close_file_write_mmap(void * mmap_ptr, int * fd_ptr, uint32_t * origional_filesize_ptr, uint32_t * expanded_filesize_ptr, uint32_t actual_filesize);
+
+
 #endif	/* #ifndef __YKX_FILE_MMAP_IO__ */
 
 
