@@ -131,6 +131,26 @@ void close_file_read_mmap(void * mmap_ptr, int * fd_ptr, uint32_t * filesize_ptr
 
 
 
+/** computed expanded size
+ *
+ * Argument:
+ *  off_t target_size - 目標/原始大小
+ *
+ * Return:
+ *  計算後的擴增為寫檔擴充頁倍數值
+ */
+static off_t compute_expanded_size(off_t target_size)
+{
+	if((off_t)(0) >= target_size)
+	{ return FILE_EXPAND_INCREMENT_STEP_VALUE; }
+
+	if( 0 == ((off_t)(FILE_EXPAND_INCREMENT_STEP_MASK) & target_size) )
+	{ return target_size; }
+
+	return ( ((target_size >> FILE_EXPAND_INCREMENT_STEP_IN_PWR2BITSCOUNT) + (off_t)(1)) << FILE_EXPAND_INCREMENT_STEP_IN_PWR2BITSCOUNT );
+}
+
+
 /** open file for MMAP I/O write
  *
  * Argument:
