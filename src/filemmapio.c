@@ -269,7 +269,6 @@ void * open_file_write_mmap(const char * filename, int * fd_ptr, uint32_t * orig
  *
  * Argument:
  * 	void * mmap_ptr - 指向 MMAP I/O 位址的指標
- * 	const char * filename - 檔案名稱
  * 	int * fd_ptr - 指向儲存 file descriptor 的變數的指標
  * 	uint32_t * expanded_filesize_ptr - 指向要儲存擴展檔案大小的變數的指標
  *  uint32_t target_filesize - 目標的檔案大小
