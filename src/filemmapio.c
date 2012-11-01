@@ -367,8 +367,20 @@ void close_file_write_mmap(void * mmap_ptr, int * fd_ptr, uint32_t * origional_f
 	fd = *fd_ptr;
 
 	/* {{{ close file */
-	munmap(mmap_ptr, (size_t)(*expanded_filesize_ptr));
-	
+	if(-1 == msync(mmap_ptr, (size_t)(*expanded_filesize_ptr), MS_SYNC))
+	{
+		int errno_val;
+		errno_val = errno;
+		__print_errno_string("ERR: cannot perform file msync", "[CLOSING_FILE]", __FILE__, __LINE__, errno_val);	/* dump error message */
+	}
+
+	if(-1 == munmap(mmap_ptr, (size_t)(*expanded_filesize_ptr)))
+	{
+		int errno_val;
+		errno_val = errno;
+		__print_errno_string("ERR: cannot perform file unmapping", "[EXPANDING_MMAP]", __FILE__, __LINE__, errno_val);	/* dump error message */
+	}
+
 	if(-1 == ftruncate(fd, (off_t)(actual_filesize)))
 	{
 		int errno_val;
