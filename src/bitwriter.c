@@ -8,38 +8,21 @@
 #include <errno.h>
 
 #include <stdio.h>
-#include <string.h>
 
 #include "bitwriter.h"
 
 
 #define __DUMP_DEBUG_MSG 1
+#include "debug_msg_dump.h"
+
+
 
 #define RESULT_FILE_PERMISSION ( S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH | S_IWOTH )
 
 
+
 static int __bitwriter_flush_BitWriter(BitWriter * bufobj, int *errno_valptr);
 
-static void __print_errno_string(const char * msg, const char * subject_filename, const char * src_file, int src_line, int errno_val)
-{
-#if __DUMP_DEBUG_MSG
-	char errno_strbuf[1024];
-
-	memset(errno_strbuf, 0, 1024);
-	strerror_r(errno_val, errno_strbuf, 1023);
-
-	if('\0' == errno_strbuf[0])
-	{ strncpy(errno_strbuf, "(ERRNO not found)", 1023); }
-
-	if(NULL == subject_filename)
-	{ fprintf(stderr, "%s: %s [@%s:%d]\n", msg, errno_strbuf, src_file, src_line); }
-	else
-	{ fprintf(stderr, "%s (file name: %s): %s @[%s:%d]\n", msg, subject_filename, errno_strbuf, src_file, src_line); }
-
-#endif	/* __DUMP_DEBUG_MSG */
-
-	return;
-}
 
 
 /** 重置 BitWriter 資料結構

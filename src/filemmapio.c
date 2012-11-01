@@ -9,40 +9,18 @@
 #include <errno.h>
 
 #include <stdio.h>
-#include <string.h>
 
 
 #include "filemmapio.h"
 
 
 #define __DUMP_DEBUG_MSG 0
+#include "debug_msg_dump.h"
 
 
 /** 最大檔案大小，超過此值將無法打開: 128 MiB = 134217728, 64 MiB = 67108864, 8 MiB = 8388608, 1 MiB = 1048576, 512 KiB = 524288 */
 #define FILE_SIZE_LIMIT 67108864
 
-
-
-static void __print_errno_string(const char * msg, const char * subject_filename, const char * src_file, int src_line, int errno_val)
-{
-#if __DUMP_DEBUG_MSG
-	char errno_strbuf[1024];
-
-	memset(errno_strbuf, 0, 1024);
-	strerror_r(errno_val, errno_strbuf, 1023);
-
-	if('\0' == errno_strbuf[0])
-	{ strncpy(errno_strbuf, "(ERRNO not found)", 1023); }
-
-	if(NULL == subject_filename)
-	{ fprintf(stderr, "%s: %s [@%s:%d]\n", msg, errno_strbuf, src_file, src_line); }
-	else
-	{ fprintf(stderr, "%s (file name: %s): %s @[%s:%d]\n", msg, subject_filename, errno_strbuf, src_file, src_line); }
-
-#endif	/* __DUMP_DEBUG_MSG */
-
-	return;
-}
 
 
 /** open file for MMAP I/O
