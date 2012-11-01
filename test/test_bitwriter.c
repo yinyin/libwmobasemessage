@@ -11,8 +11,6 @@ int main(int argc, char ** argv)
 
 	char CODEMAP[62];
 
-	uint64_t v;
-
 	int i;
 
 	if(-1 == bitwriter_open("BINWRITE.out", &writer, &errno_val))
