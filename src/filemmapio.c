@@ -223,6 +223,7 @@ void * open_file_write_mmap(const char * filename, int * fd_ptr, uint32_t * orig
 		return NULL;
 	}
 
+	/* ... {{{ expand file size */
 	if(-1 == ftruncate(fd, expanded_filesize))
 	{
 		int errno_val;
@@ -234,6 +235,9 @@ void * open_file_write_mmap(const char * filename, int * fd_ptr, uint32_t * orig
 
 		return NULL;
 	}
+	
+	*expanded_filesize_ptr = expanded_filesize;
+	/* ... }}} expand file size */
 
 	if( MAP_FAILED == (result_ptr = mmap(NULL, (size_t)(expanded_filesize), PROT_READ|PROT_WRITE, MAP_PRIVATE, fd, 0)) )
 	{
@@ -244,6 +248,75 @@ void * open_file_write_mmap(const char * filename, int * fd_ptr, uint32_t * orig
 
 		close(fd);
 
+		return NULL;
+	}
+	/* }}} create mmap */
+
+	return result_ptr;
+}
+
+
+/** expand file for MMAP I/O write
+ *
+ * Argument:
+ * 	void * mmap_ptr - 指向 MMAP I/O 位址的指標
+ * 	const char * filename - 檔案名稱
+ * 	int * fd_ptr - 指向儲存 file descriptor 的變數的指標
+ * 	uint32_t * expanded_filesize_ptr - 指向要儲存擴展檔案大小的變數的指標
+ *  uint32_t target_filesize - 目標的檔案大小
+ * 	int * errno_valptr - 指向要儲存 ERRNO 值的變數的指標
+ *
+ * Return:
+ * 	所取得的 MMAP I/O 指標，當失敗時傳回 NULL 並設定 ERRNO 值
+ * */
+void * expand_file_write_mmap(void * mmap_ptr, int * fd_ptr, uint32_t * expanded_filesize_ptr, uint32_t target_filesize, int * errno_valptr)
+{
+	int fd;
+	off_t expanded_filesize;
+	void * result_ptr;
+	
+	/* {{{ initial variables */
+	fd = *fd_ptr;
+	*errno_valptr = 0;	/* clear errno pointer first */
+	result_ptr = NULL;
+	/* }}} initial variables */
+	
+	/* {{{ compute expanded target file size */
+	expanded_filesize = (
+		( 0 != ((off_t)(FILE_EXPAND_INCREMENT_STEP_MASK) & target_filesize) )
+			? ( ((target_filesize >> FILE_EXPAND_INCREMENT_STEP_IN_PWR2BITSCOUNT) + (off_t)(1)) << FILE_EXPAND_INCREMENT_STEP_IN_PWR2BITSCOUNT )
+			: ( target_filesize )
+	);
+	/* }}} compute expanded target file size */
+	
+	/* {{{ releasing mmap */
+	if(-1 == munmap(mmap_ptr, (size_t)(*expanded_filesize_ptr)))
+	{
+		int errno_val;
+		*errno_valptr = (errno_val = errno);
+		__print_errno_string("ERR: cannot perform file unmapping", "[EXPANDING_MMAP]", __FILE__, __LINE__, errno_val);	/* dump error message */
+		return NULL;
+	}
+	/* }}} releasing mmap */
+	
+	/* {{{ create mmap */
+	/* ... {{{ expand file size */
+	if(-1 == ftruncate(fd, expanded_filesize))
+	{
+		int errno_val;
+		*errno_valptr = (errno_val = errno);
+		__print_errno_string("ERR: cannot perform f-truncate", "[EXPANDING_MMAP]", __FILE__, __LINE__, errno_val);	/* dump error message */
+		return NULL;
+	}
+
+	*expanded_filesize_ptr = expanded_filesize;
+	/* ... }}} expand file size */
+
+	if( MAP_FAILED == (result_ptr = mmap(NULL, (size_t)(expanded_filesize), PROT_READ|PROT_WRITE, MAP_PRIVATE, fd, 0)) )
+	{
+		int errno_val;
+		*errno_valptr = (errno_val = errno);
+		__print_errno_string("ERR: cannot perform file mapping", "[EXPANDING_MMAP]", __FILE__, __LINE__, errno_val);	/* dump error message */
 		return NULL;
 	}
 	/* }}} create mmap */
