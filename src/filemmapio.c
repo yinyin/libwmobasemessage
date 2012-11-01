@@ -211,16 +211,11 @@ void * open_file_write_mmap(const char * filename, int * fd_ptr, uint32_t * orig
 	}
 	/* }}} get file size */
 
-	/* {{{ compute expanded file size */
-	expanded_filesize = (
-		( 0 != ((off_t)(FILE_EXPAND_INCREMENT_STEP_MASK) & origional_filesize) )
-			? ( ((origional_filesize >> FILE_EXPAND_INCREMENT_STEP_IN_PWR2BITSCOUNT) + (off_t)(1)) << FILE_EXPAND_INCREMENT_STEP_IN_PWR2BITSCOUNT )
-			: ( origional_filesize )
-	);
-	/* }}} compute expanded file size */
+	/* compute expanded file size */
+	expanded_filesize = compute_expanded_size(origional_filesize);
 
 	/* {{{ create mmap */
-	if( (origional_filesize < 0) || (origional_filesize > FILE_SIZE_LIMIT) || (expanded_filesize < 0) )
+	if( (origional_filesize < 0) || (origional_filesize > FILE_SIZE_LIMIT) || (expanded_filesize < 0) || (expanded_filesize > FILE_SIZE_LIMIT) )
 	{	/* file too large */
 		#if __DUMP_DEBUG_MSG
 			fprintf(stderr, "ERR: file too large (> %d), (filename=[%s], orig_size=%lld, expand_size=%lld) @[%s:%d]\n", FILE_SIZE_LIMIT, filename, (long long int)(origional_filesize), (long long int)(expanded_filesize), __FILE__, __LINE__);
