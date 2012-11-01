@@ -61,10 +61,8 @@ void * open_file_read_mmap(const char * filename, int * fd_ptr, uint32_t * files
 	if( -1 == (fd = open(filename, O_RDONLY) ) )
 	{
 		int errno_val;
-
 		*errno_valptr = (errno_val = errno);
 		__print_errno_string("ERR: cannot open file for read", filename, __FILE__, __LINE__, errno_val);	/* dump error message */
-
 		return NULL;
 	}
 
@@ -82,9 +80,7 @@ void * open_file_read_mmap(const char * filename, int * fd_ptr, uint32_t * files
 
 			*errno_valptr = (errno_val = errno);
 			__print_errno_string("ERR: cannot get file size", filename, __FILE__, __LINE__, errno_val);	/* dump error message */
-
-			close(fd);
-
+			close(fd);	/* close file descriptor */
 			return NULL;
 		}
 
@@ -99,21 +95,16 @@ void * open_file_read_mmap(const char * filename, int * fd_ptr, uint32_t * files
 		#if __DUMP_DEBUG_MSG
 			fprintf(stderr, "ERR: file too large (> %d), (filename=[%s], size=%lld) @[%s:%d]\n", FILE_SIZE_LIMIT, filename, (long long int)(filesize), __FILE__, __LINE__);
 		#endif
-
-		close(fd);
-
+		close(fd);	/* close file descriptor */
 		return NULL;
 	}
 
 	if( MAP_FAILED == (result_ptr = mmap(NULL, (size_t)(filesize), PROT_READ, MAP_PRIVATE, fd, 0)) )
 	{
 		int errno_val;
-
 		*errno_valptr = (errno_val = errno);
 		__print_errno_string("ERR: cannot perform file mapping", filename, __FILE__, __LINE__, errno_val);	/* dump error message */
-
-		close(fd);
-
+		close(fd);	/* close file descriptor */
 		return NULL;
 	}
 	/* }}} create mmap */
@@ -171,10 +162,8 @@ void * open_file_write_mmap(const char * filename, int * fd_ptr, uint32_t * orig
 	if( -1 == (fd = open(filename, O_RDWR|O_CREAT, RESULT_FILE_PERMISSION)) )
 	{
 		int errno_val;
-
 		*errno_valptr = (errno_val = errno);
 		__print_errno_string("ERR: cannot open file for write", filename, __FILE__, __LINE__, errno_val);	/* dump error message */
-
 		return NULL;
 	}
 
@@ -189,12 +178,9 @@ void * open_file_write_mmap(const char * filename, int * fd_ptr, uint32_t * orig
 		if(-1 == fstat(fd, &stat_buf))
 		{
 			int errno_val;
-
 			*errno_valptr = (errno_val = errno);
 			__print_errno_string("ERR: cannot get file size", filename, __FILE__, __LINE__, errno_val);	/* dump error message */
-
-			close(fd);
-
+			close(fd);	/* close file descriptor */
 			return NULL;
 		}
 
@@ -202,7 +188,7 @@ void * open_file_write_mmap(const char * filename, int * fd_ptr, uint32_t * orig
 		*origional_filesize_ptr = ( (origional_filesize > 0) ? (uint32_t)(origional_filesize) : 0 );
 	}
 	/* }}} get file size */
-	
+
 	/* {{{ compute expanded file size */
 	expanded_filesize = (
 		( 0 != ((off_t)(FILE_EXPAND_INCREMENT_STEP_MASK) & origional_filesize) )
@@ -217,9 +203,7 @@ void * open_file_write_mmap(const char * filename, int * fd_ptr, uint32_t * orig
 		#if __DUMP_DEBUG_MSG
 			fprintf(stderr, "ERR: file too large (> %d), (filename=[%s], orig_size=%lld, expand_size=%lld) @[%s:%d]\n", FILE_SIZE_LIMIT, filename, (long long int)(origional_filesize), (long long int)(expanded_filesize), __FILE__, __LINE__);
 		#endif
-
-		close(fd);
-
+		close(fd);	/* close file descriptor */
 		return NULL;
 	}
 
@@ -227,27 +211,21 @@ void * open_file_write_mmap(const char * filename, int * fd_ptr, uint32_t * orig
 	if(-1 == ftruncate(fd, expanded_filesize))
 	{
 		int errno_val;
-
 		*errno_valptr = (errno_val = errno);
 		__print_errno_string("ERR: cannot perform f-truncate", filename, __FILE__, __LINE__, errno_val);	/* dump error message */
-
-		close(fd);
-
+		close(fd);	/* close file descriptor */
 		return NULL;
 	}
-	
+
 	*expanded_filesize_ptr = expanded_filesize;
 	/* ... }}} expand file size */
 
 	if( MAP_FAILED == (result_ptr = mmap(NULL, (size_t)(expanded_filesize), PROT_READ|PROT_WRITE, MAP_PRIVATE, fd, 0)) )
 	{
 		int errno_val;
-
 		*errno_valptr = (errno_val = errno);
 		__print_errno_string("ERR: cannot perform file mapping", filename, __FILE__, __LINE__, errno_val);	/* dump error message */
-
-		close(fd);
-
+		close(fd);	/* close file descriptor */
 		return NULL;
 	}
 	/* }}} create mmap */
@@ -274,13 +252,13 @@ void * expand_file_write_mmap(void * mmap_ptr, int * fd_ptr, uint32_t * expanded
 	int fd;
 	off_t expanded_filesize;
 	void * result_ptr;
-	
+
 	/* {{{ initial variables */
 	fd = *fd_ptr;
 	*errno_valptr = 0;	/* clear errno pointer first */
 	result_ptr = NULL;
 	/* }}} initial variables */
-	
+
 	/* {{{ compute expanded target file size */
 	expanded_filesize = (
 		( 0 != ((off_t)(FILE_EXPAND_INCREMENT_STEP_MASK) & target_filesize) )
@@ -288,7 +266,7 @@ void * expand_file_write_mmap(void * mmap_ptr, int * fd_ptr, uint32_t * expanded
 			: ( target_filesize )
 	);
 	/* }}} compute expanded target file size */
-	
+
 	/* {{{ releasing mmap */
 	if(-1 == munmap(mmap_ptr, (size_t)(*expanded_filesize_ptr)))
 	{
@@ -298,7 +276,7 @@ void * expand_file_write_mmap(void * mmap_ptr, int * fd_ptr, uint32_t * expanded
 		return NULL;
 	}
 	/* }}} releasing mmap */
-	
+
 	/* {{{ create mmap */
 	/* ... {{{ expand file size */
 	if(-1 == ftruncate(fd, expanded_filesize))
@@ -337,20 +315,19 @@ void * expand_file_write_mmap(void * mmap_ptr, int * fd_ptr, uint32_t * expanded
 void close_file_write_mmap(void * mmap_ptr, int * fd_ptr, uint32_t * origional_filesize_ptr, uint32_t * expanded_filesize_ptr, uint32_t actual_filesize)
 {
 	int fd;
-	
+
 	fd = *fd_ptr;
-	
+
 	/* {{{ close file */
 	munmap(mmap_ptr, (size_t)(*expanded_filesize_ptr));
 	
 	if(-1 == ftruncate(fd, (off_t)(actual_filesize)))
 	{
 		int errno_val;
-
 		errno_val = errno;
 		__print_errno_string("ERR: cannot perform f-truncate on closing", "[CLOSING_FILE]", __FILE__, __LINE__, errno_val);	/* dump error message */
 	}
-	
+
 	close(fd);
 	/* }}} close file */
 
