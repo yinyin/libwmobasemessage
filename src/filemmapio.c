@@ -112,14 +112,14 @@ void * open_file_read_mmap(const char * filename, int * fd_ptr, uint32_t * files
 }
 
 
-/** close MMAP I/O file
+/** close MMAP I/O read file
  *
  * Argument:
  * 	void * mmap_ptr - 指向 MMAP I/O 位址的指標
  * 	int * fd_ptr - 指向存放 file descriptor 的變數的指標
  * 	uint32_t * filesize_ptr - 指向存放檔案大小的變數的指標
  * */
-void close_file_mmap(void * mmap_ptr, int * fd_ptr, uint32_t * filesize_ptr)
+void close_file_read_mmap(void * mmap_ptr, int * fd_ptr, uint32_t * filesize_ptr)
 {
 	munmap(mmap_ptr, (size_t)(*filesize_ptr));
 	close(*fd_ptr);

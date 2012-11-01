@@ -15,7 +15,7 @@
 
 void * open_file_read_mmap(const char * filename, int * fd_ptr, uint32_t * filesize_ptr, int * errno_valptr);
 
-void close_file_mmap(void * mmap_ptr, int * fd_ptr, uint32_t * filesize_ptr);
+void close_file_read_mmap(void * mmap_ptr, int * fd_ptr, uint32_t * filesize_ptr);
 
 
 #endif	/* #ifndef __YKX_FILE_MMAP_IO__ */

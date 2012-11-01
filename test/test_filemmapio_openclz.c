@@ -26,7 +26,7 @@ int main(int argc, char ** argv)
 		}
 	}
 
-	close_file_mmap(p, &fd, &filesize);
+	close_file_read_mmap(p, &fd, &filesize);
 
 	return 0;
 }
