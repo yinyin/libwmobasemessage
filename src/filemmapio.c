@@ -32,6 +32,8 @@
 #define RESULT_FILE_PERMISSION ( S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH | S_IWOTH )
 
 
+#define EXPAND_WRITESPACE_WITH_REWORK_MMAP 1
+
 
 /** open file for MMAP I/O read
  *
@@ -238,9 +240,18 @@ void * open_file_write_mmap(const char * filename, int * fd_ptr, uint32_t * orig
 	}
 
 	*expanded_filesize_ptr = expanded_filesize;
+	#if __DUMP_DEBUG_MSG
+		fprintf(stderr, "INFO: expanded_size = %lld @[%s:%d]\n", (long long int)(expanded_filesize), __FILE__, __LINE__);
+	#endif
 	/* ... }}} expand file size */
 
-	if( MAP_FAILED == (result_ptr = mmap(NULL, (size_t)(expanded_filesize), PROT_READ|PROT_WRITE, MAP_PRIVATE, fd, 0)) )
+	if( MAP_FAILED == (result_ptr = mmap(NULL, (size_t)(
+#if EXPAND_WRITESPACE_WITH_REWORK_MMAP
+		expanded_filesize
+#else
+		FILE_SIZE_LIMIT
+#endif	/* EXPAND_WRITESPACE_WITH_REWORK_MMAP */
+	), PROT_READ|PROT_WRITE, MAP_SHARED, fd, 0)) )
 	{
 		int errno_val;
 		*errno_valptr = (errno_val = errno);
@@ -279,15 +290,18 @@ void * expand_file_write_mmap(void * mmap_ptr, int * fd_ptr, uint32_t * expanded
 	result_ptr = NULL;
 	/* }}} initial variables */
 
-	/* {{{ compute expanded target file size */
-	expanded_filesize = (
-		( 0 != ((off_t)(FILE_EXPAND_INCREMENT_STEP_MASK) & target_filesize) )
-			? ( ((target_filesize >> FILE_EXPAND_INCREMENT_STEP_IN_PWR2BITSCOUNT) + (off_t)(1)) << FILE_EXPAND_INCREMENT_STEP_IN_PWR2BITSCOUNT )
-			: ( target_filesize )
-	);
-	/* }}} compute expanded target file size */
+	/* compute expanded target file size */
+	expanded_filesize = compute_expanded_size(target_filesize);
 
-	/* {{{ releasing mmap */
+#if EXPAND_WRITESPACE_WITH_REWORK_MMAP
+	/* {{{ releasing mmap to rework mmap */
+	if(-1 == msync(mmap_ptr, (size_t)(*expanded_filesize_ptr), MS_SYNC))
+	{
+		int errno_val;
+		*errno_valptr = (errno_val = errno);
+		__print_errno_string("ERR: cannot perform file msync", "[EXPANDING_MMAP]", __FILE__, __LINE__, errno_val);	/* dump error message */
+		return NULL;
+	}
 	if(-1 == munmap(mmap_ptr, (size_t)(*expanded_filesize_ptr)))
 	{
 		int errno_val;
@@ -295,9 +309,20 @@ void * expand_file_write_mmap(void * mmap_ptr, int * fd_ptr, uint32_t * expanded
 		__print_errno_string("ERR: cannot perform file unmapping", "[EXPANDING_MMAP]", __FILE__, __LINE__, errno_val);	/* dump error message */
 		return NULL;
 	}
-	/* }}} releasing mmap */
+	/* }}} releasing mmap to rework mmap */
+#else
+	/* {{{ make sure expanded size not larger than mapped size (which is FILE_SIZE_LIMIT) */
+	if( (expanded_filesize <= 0) || (expanded_filesize > FILE_SIZE_LIMIT) )
+	{	/* file too large */
+		#if __DUMP_DEBUG_MSG
+			fprintf(stderr, "ERR: expand too large (> %d), (expanded_size=%lld) @[%s:%d]\n", FILE_SIZE_LIMIT, (long long int)(expanded_filesize), __FILE__, __LINE__);
+		#endif
+		return NULL;
+	}
+	/* }}} make sure expanded size not larger than mapped size (which is FILE_SIZE_LIMIT) */
+#endif	/* EXPAND_WRITESPACE_WITH_REWORK_MMAP */
 
-	/* {{{ create mmap */
+	/* {{{ re-create/expand mmap */
 	/* ... {{{ expand file size */
 	if(-1 == ftruncate(fd, expanded_filesize))
 	{
@@ -310,14 +335,18 @@ void * expand_file_write_mmap(void * mmap_ptr, int * fd_ptr, uint32_t * expanded
 	*expanded_filesize_ptr = expanded_filesize;
 	/* ... }}} expand file size */
 
-	if( MAP_FAILED == (result_ptr = mmap(NULL, (size_t)(expanded_filesize), PROT_READ|PROT_WRITE, MAP_PRIVATE, fd, 0)) )
+#if EXPAND_WRITESPACE_WITH_REWORK_MMAP
+	if( MAP_FAILED == (result_ptr = mmap(NULL, (size_t)(expanded_filesize), PROT_READ|PROT_WRITE, MAP_SHARED, fd, 0)) )
 	{
 		int errno_val;
 		*errno_valptr = (errno_val = errno);
 		__print_errno_string("ERR: cannot perform file mapping", "[EXPANDING_MMAP]", __FILE__, __LINE__, errno_val);	/* dump error message */
 		return NULL;
 	}
-	/* }}} create mmap */
+#else
+	result_ptr = mmap_ptr;
+#endif	/* EXPAND_WRITESPACE_WITH_REWORK_MMAP */
+	/* }}} re-create/expand mmap */
 
 	return result_ptr;
 }
