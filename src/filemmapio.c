@@ -293,14 +293,14 @@ void * expand_file_write_mmap(void * mmap_ptr, int * fd_ptr, uint32_t * expanded
 	{
 		int errno_val;
 		*errno_valptr = (errno_val = errno);
-		__print_errno_string("ERR: cannot perform file msync", "[EXPANDING_MMAP]", __FILE__, __LINE__, errno_val);	/* dump error message */
+		__print_errno_string("ERR: cannot perform file msync", NULL, __FILE__, __LINE__, errno_val);	/* dump error message */
 		return NULL;
 	}
 	if(-1 == munmap(mmap_ptr, (size_t)(*expanded_filesize_ptr)))
 	{
 		int errno_val;
 		*errno_valptr = (errno_val = errno);
-		__print_errno_string("ERR: cannot perform file unmapping", "[EXPANDING_MMAP]", __FILE__, __LINE__, errno_val);	/* dump error message */
+		__print_errno_string("ERR: cannot perform file unmapping", NULL, __FILE__, __LINE__, errno_val);	/* dump error message */
 		return NULL;
 	}
 	/* }}} releasing mmap to rework mmap */
@@ -322,7 +322,7 @@ void * expand_file_write_mmap(void * mmap_ptr, int * fd_ptr, uint32_t * expanded
 	{
 		int errno_val;
 		*errno_valptr = (errno_val = errno);
-		__print_errno_string("ERR: cannot perform f-truncate", "[EXPANDING_MMAP]", __FILE__, __LINE__, errno_val);	/* dump error message */
+		__print_errno_string("ERR: cannot perform f-truncate", NULL, __FILE__, __LINE__, errno_val);	/* dump error message */
 		return NULL;
 	}
 
@@ -334,7 +334,7 @@ void * expand_file_write_mmap(void * mmap_ptr, int * fd_ptr, uint32_t * expanded
 	{
 		int errno_val;
 		*errno_valptr = (errno_val = errno);
-		__print_errno_string("ERR: cannot perform file mapping", "[EXPANDING_MMAP]", __FILE__, __LINE__, errno_val);	/* dump error message */
+		__print_errno_string("ERR: cannot perform file mapping", NULL, __FILE__, __LINE__, errno_val);	/* dump error message */
 		return NULL;
 	}
 #else
@@ -366,21 +366,21 @@ void close_file_write_mmap(void * mmap_ptr, int * fd_ptr, uint32_t * origional_f
 	{
 		int errno_val;
 		errno_val = errno;
-		__print_errno_string("ERR: cannot perform file msync", "[CLOSING_FILE]", __FILE__, __LINE__, errno_val);	/* dump error message */
+		__print_errno_string("ERR: cannot perform file msync", NULL, __FILE__, __LINE__, errno_val);	/* dump error message */
 	}
 
 	if(-1 == munmap(mmap_ptr, (size_t)(*expanded_filesize_ptr)))
 	{
 		int errno_val;
 		errno_val = errno;
-		__print_errno_string("ERR: cannot perform file unmapping", "[EXPANDING_MMAP]", __FILE__, __LINE__, errno_val);	/* dump error message */
+		__print_errno_string("ERR: cannot perform file unmapping", NULL, __FILE__, __LINE__, errno_val);	/* dump error message */
 	}
 
 	if(-1 == ftruncate(fd, (off_t)(actual_filesize)))
 	{
 		int errno_val;
 		errno_val = errno;
-		__print_errno_string("ERR: cannot perform f-truncate on closing", "[CLOSING_FILE]", __FILE__, __LINE__, errno_val);	/* dump error message */
+		__print_errno_string("ERR: cannot perform f-truncate on closing", NULL, __FILE__, __LINE__, errno_val);	/* dump error message */
 	}
 
 	close(fd);
