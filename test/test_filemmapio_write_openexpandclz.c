@@ -52,7 +52,7 @@ int main(int argc, char ** argv)
 		}
 	}
 
-	close_file_write_mmap(p, &fd, &orig_filesize, &expd_filesize, target_filesize);
+	close_file_write_mmap(p, &fd, &orig_filesize, &expd_filesize, target_filesize, &errnoval);
 
 	return 0;
 }
