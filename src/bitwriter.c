@@ -9,6 +9,7 @@
 
 #include <stdio.h>
 
+#include "filemmapio.h"
 #include "bitwriter.h"
 
 
@@ -17,11 +18,11 @@
 
 
 
-#define RESULT_FILE_PERMISSION ( S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH | S_IWOTH )
+static int __bitwriter_expand_mmap(BitWriter * bufobj, int size_to_write, int *errno_valptr);
 
+static int __bitwriter_check_write_exceed_region(BitWriter * bufobj, int bytes_desire);
 
-
-static int __bitwriter_flush_BitWriter(BitWriter * bufobj, int *errno_valptr);
+static int __bitwriter_fill_buffer_to_alignment(BitWriter * bufobj);
 
 
 
@@ -34,10 +35,23 @@ void bitwriter_reset_instance_data(BitWriter *bufobj)
 {
 	memset(bufobj, 0, sizeof(BitWriter));
 
-	bufobj->fd = -1;
-	bufobj->bit_buffer_remain = 64;
+	bufobj->blob_fd = -1;
 
-	bufobj->current_flush_ptr = (uint64_t *)(bufobj->flush_block);
+	bufobj->orig_filesize = 0;
+	bufobj->expd_filesize = 0;
+
+	bufobj->blob_start_ptr = NULL;
+	bufobj->blob_bound_ptr = NULL;
+
+	bufobj->blob_current_ptr = NULL;
+	bufobj->blob_farthest_ptr = NULL;
+
+	bufobj->blob_regionstart_ptr = NULL;
+	bufobj->blob_regionbound_ptr = NULL;
+
+	bufobj->buffer_write_mode = BITWRITER_BUFFER_WRITE_MODIFY;
+
+	bufobj->bit_buffer_remain = 64;
 }
 
 
@@ -49,27 +63,28 @@ void bitwriter_reset_instance_data(BitWriter *bufobj)
  *    int *errno_valptr - 當錯誤時存放 errno 的變數的指標
  *
  * Return:
- *    0  - 正常結束
+ *     0 - 正常結束
  *    -1 - 開啟檔案時發生錯誤
  * */
 int bitwriter_open(const char *filename, BitWriter *bufobj, int *errno_valptr)
 {
-	int fd;
-
 	bitwriter_reset_instance_data(bufobj);	/* init data structure */
 
 	/* {{{ open file descriptor */
-	if( -1 == (fd = open(filename, O_CREAT|O_WRONLY, RESULT_FILE_PERMISSION) ) )
+	if( NULL == (bufobj->blob_start_ptr = open_file_write_mmap(filename, &bufobj->blob_fd, &bufobj->orig_filesize, &bufobj->expd_filesize, errno_valptr)) )
 	{
-		int errno_val;
-
-		*errno_valptr = (errno_val = errno);
-		__print_errno_string("ERR: cannot open file for write", filename, __FILE__, __LINE__, errno_val);	/* dump error message */
-
+		__print_errno_string("ERR: cannot open file for write", filename, __FILE__, __LINE__, *errno_valptr);	/* dump error message */
 		return -1;
 	}
 	/* }}} open file descriptor */
-	bufobj->fd = fd;
+
+	bufobj->blob_bound_ptr = bufobj->blob_start_ptr + (int)(bufobj->expd_filesize);
+
+	bufobj->blob_current_ptr = bufobj->blob_start_ptr;
+	bufobj->blob_farthest_ptr = bufobj->blob_current_ptr;
+
+	bufobj->blob_regionstart_ptr = bufobj->blob_start_ptr;
+	bufobj->blob_regionbound_ptr = NULL;
 
 	return 0;
 }
@@ -82,117 +97,369 @@ int bitwriter_open(const char *filename, BitWriter *bufobj, int *errno_valptr)
  *    int *errno_valptr - 當錯誤時存放 errno 的變數的指標
  *
  * Return:
- *    0  - 正常結束
+ *     0 - 正常結束
  *    -1 - 關閉檔案時發生錯誤
  * */
 int bitwriter_close(BitWriter *bufobj, int *errno_valptr)
 {
-	int written_block_size;
+	int retcode;
 
-	if(-1 == __bitwriter_flush_BitWriter(bufobj, errno_valptr))
-	{ return -1; }
+	retcode = 0;
 
-	if(64 != bufobj->bit_buffer_remain)	/* flush remaining bits into buffer */
+	/* {{{ flush remaining bits into mmap */
 	{
-		int byte_count;
-		uint8_t *flush_bound;
-		byte_count = 8 - (bufobj->bit_buffer_remain / 8);
+		int flushed_bit_count;
 
-		*(bufobj->current_flush_ptr) = htobe64(bufobj->bit_buffer);
-		flush_bound = (uint8_t *)(bufobj->current_flush_ptr) + byte_count;
-
-		written_block_size = flush_bound - bufobj->flush_block;
-	}
-	else
-	{
-		written_block_size = (void *)(bufobj->current_flush_ptr) - (void *)(bufobj->flush_block);
-	}
-
-	/* {{{ flush remaining bits into file */
-	if(written_block_size > 0)
-	{
-		int ret;
-
-		if( -1 == (ret = write(bufobj->fd, bufobj->flush_block, written_block_size)) )
+		if( -1 == (flushed_bit_count = bitwriter_buffer_flush(bufobj, errno_valptr)) )
 		{
-			int errno_val;
-
-			*errno_valptr = (errno_val = errno);
-			__print_errno_string("ERR: cannot flush buffer to file", NULL, __FILE__, __LINE__, errno_val);	/* dump error message */
+			__print_errno_string("ERR: failed on flush buffer", NULL, __FILE__, __LINE__, *errno_valptr);	/* dump error message */
+			retcode -= 65536;
 		}
+		
+		#if __DUMP_DEBUG_MSG
+			fprintf(stderr, "INFO: flushing to memory. (bits=%d) @[%s:%d]\n", flushed_bit_count, __FILE__, __LINE__);
+		#endif
 	}
-
-	#if __DUMP_DEBUG_MSG
-		fprintf(stderr, "INFO: flushing to file. (size=%d) @[%s:%d]\n", written_block_size, __FILE__, __LINE__);
-	#endif
-	/* }}} flush remaining bits into file */
+	/* }}} flush remaining bits into mmap */
 
 	/* {{{ close file descriptor */
-	if( -1 == close(bufobj->fd) )
 	{
-		int errno_val;
+		int ret;
+		uint32_t actual_filesize;
+		
+		actual_filesize = (uint32_t)(bufobj->blob_farthest_ptr - bufobj->blob_start_ptr);
+		
+		if( 0 > (ret = close_file_write_mmap(bufobj->blob_start_ptr, &bufobj->blob_fd, &bufobj->orig_filesize, &bufobj->expd_filesize, actual_filesize, errno_valptr)) )
+		{
+			__print_errno_string("ERR: failed on closing file", NULL, __FILE__, __LINE__, *errno_valptr);	/* dump error message */
+			retcode += ret;
+		}
 
-		*errno_valptr = (errno_val = errno);
-		__print_errno_string("ERR: cannot close file", NULL, __FILE__, __LINE__, errno_val);	/* dump error message */
-
-		return -1;
+		#if __DUMP_DEBUG_MSG
+			fprintf(stderr, "INFO: closed file. (ret=%d) @[%s:%d]\n", ret, __FILE__, __LINE__);
+		#endif
 	}
-	/* }}} open file descriptor */
+	/* }}} close file descriptor */
 
 	bitwriter_reset_instance_data(bufobj);	/* clear data structure */
+
+	return retcode;
+}
+
+
+
+/** 取得目前指標位置與資料流開頭的偏移量
+ *
+ * Argument:
+ *    BitWriter *bufobj - BitWriter 物件
+ *
+ * Return:
+ *    偏移量
+ * */
+int64_t bitwriter_get_current_offset(BitWriter *bufobj)
+{
+	int64_t offset;
+
+	offset = (int64_t)(bufobj->blob_current_ptr - bufobj->blob_start_ptr);
+
+	return offset;
+}
+
+/** 將目前指標位置移到指定的偏移量處
+ *
+ * Argument:
+ *    BitWriter *bufobj - BitWriter 物件
+ *    int64_t offset - 偏移量
+ *    int flush_buffer - 是否要一併寫出 buffer 內容 - 0: 不寫出, 1: 寫出
+ *    int *errno_valptr - 當錯誤時存放 errno 的變數的指標
+ *
+ * Return:
+ *     0 - 正常結束
+ *    -1 - 寫出緩衝時發生錯誤
+ *    -2 - 偏移量為負數
+ * */
+int bitreader_set_current_offset(BitWriter *bufobj, int64_t offset, int flush_buffer, int *errno_valptr)
+{
+	void *proposed_pointer;
+
+	if(offset < 0)
+	{ return -2; }
+
+	proposed_pointer = bufobj->blob_start_ptr + (size_t)(offset);
+
+	if(-1 == bitwriter_buffer_flush(bufobj, errno_valptr))
+	{ return -1; }
+
+	bufobj->blob_current_ptr = proposed_pointer;
 
 	return 0;
 }
 
 
+
 /** (internal function)
- * 如果緩衝區已滿，將緩衝區內的資料寫出
+ * 當要寫入的資料大於剩餘的 mmap 空間時，擴充 mmap 空間並調整 BitWriter 結構體中的指標
+ *
+ * Argument:
+ *    BitWriter *bufobj - BitWriter 物件
+ *    int size_to_write - 要寫入的大小
+ *    int *errno_valptr - 當錯誤時存放 errno 的變數的指標
+ *
+ * Return:
+ *     0 - 正常
+ *    -1 - 在擴充 mmap 空間時發生異常
+ * */
+static int __bitwriter_expand_mmap(BitWriter * bufobj, int size_to_write, int *errno_valptr)
+{
+	if( (bufobj->blob_current_ptr + size_to_write) <= bufobj->blob_bound_ptr )
+	{ return 0; }
+
+	/* {{{ perform mmap expand and relocate pointers in structure */
+	{
+		uint32_t target_size;
+		void *new_map;
+
+		target_size = (uint32_t)((size_t)(bufobj->blob_current_ptr - bufobj->blob_start_ptr) + (size_t)(size_to_write));
+
+		if( NULL == (new_map = expand_file_write_mmap(bufobj->blob_start_ptr, &bufobj->blob_fd, &bufobj->expd_filesize, target_size, errno_valptr)) )
+		{
+			__print_errno_string("ERR: cannot expand mmap", NULL, __FILE__, __LINE__, *errno_valptr);	/* dump error message */
+			return -1;
+		}
+		
+		if(new_map != bufobj->blob_start_ptr)
+		{
+			bufobj->blob_current_ptr = new_map + (size_t)(bufobj->blob_current_ptr - bufobj->blob_start_ptr);
+			bufobj->blob_farthest_ptr = new_map + (size_t)(bufobj->blob_farthest_ptr - bufobj->blob_start_ptr);
+			
+			bufobj->blob_regionstart_ptr = new_map + (size_t)(bufobj->blob_regionstart_ptr - bufobj->blob_start_ptr);
+			if(NULL != bufobj->blob_regionbound_ptr)
+			{ bufobj->blob_regionbound_ptr = new_map + (size_t)(bufobj->blob_regionbound_ptr - bufobj->blob_start_ptr); }
+			
+			bufobj->blob_start_ptr = new_map;
+		}
+		
+		bufobj->blob_bound_ptr = bufobj->blob_start_ptr + (size_t)(bufobj->expd_filesize);
+	}
+	/* }}} perform mmap expand and relocate pointers in structure */
+	
+	return 0;
+}
+
+
+/** (internal function)
+ * 檢查欲寫出的位元組數是否超過邊界
+ *
+ * Argument:
+ *    BitWriter *bufobj - BitWriter 物件
+ *    int bytes_desire - 要寫入的位元組數
+ *
+ * Return:
+ *    可以寫出的位元組數
+ * */
+static int __bitwriter_check_write_exceed_region(BitWriter * bufobj, int bytes_desire)
+{
+	if(NULL != bufobj->blob_regionbound_ptr)
+	{
+		if( (bufobj->blob_current_ptr + bytes_desire) > bufobj->blob_regionbound_ptr )
+		{ bytes_desire = (int)(bufobj->blob_regionbound_ptr - bufobj->blob_current_ptr); }
+	}
+
+	return bytes_desire;
+}
+
+
+/** 將目前指標前的數據填入位元緩衝區內，使目前指標與位元組字組邊界對齊
+ *
+ * Argument:
+ *    BitWriter *bufobj - BitWriter 物件
+ *
+ * Return:
+ *    >=0 填入的 byte 數
+ *    -1  當指標過度接近記憶體首端，使得無法完整讀取一個字組
+ *    -2  當指標過度接近記憶體尾端，使得無法完整讀取一個字組
+ * */
+static int __bitwriter_fill_buffer_to_alignment(BitWriter * bufobj)
+{
+	int fraction;
+	uint64_t r_content;
+	int remain_bits;
+
+	if(64 != bufobj->bit_buffer_remain)
+	{ return 0; }
+
+	fprintf(stderr, "INFO: remained bitbuffer (buffer_remain=%d).\n", bufobj->bit_buffer_remain);
+
+	#if __LP64__ || __LP64
+	fraction = (int)((uint64_t)(bufobj->blob_current_ptr) & 7LL);
+	#else
+	fraction = (int)((uint32_t)(bufobj->blob_current_ptr) & 7L);
+	#endif
+
+	if(0 == fraction)
+	{ return 0; }
+
+	if( bufobj->blob_start_ptr > (bufobj->blob_current_ptr - fraction) )
+	{ return -1; }
+
+	if( (bufobj->blob_current_ptr - fraction + 8) > bufobj->blob_bound_ptr )
+	{ return -2; }
+
+	bufobj->blob_current_ptr -= fraction;
+
+	r_content = *(uint64_t *)(bufobj->blob_current_ptr);
+	remain_bits = 64 - (fraction * 8);
+
+	bufobj->bit_buffer = be64toh(r_content) & ~((1LL << remain_bits) - 1LL);
+	bufobj->bit_buffer_remain = remain_bits;
+
+	return fraction;
+}
+
+
+/** 將位元緩衝區內的資料寫出
  *
  * Argument:
  *    BitWriter *bufobj - BitWriter 物件
  *    int *errno_valptr - 當錯誤時存放 errno 的變數的指標
  *
  * Return:
- *    寫出的 byte 數
+ *    寫出的 bit 數，或是 -1 當異常時
  * */
-static int __bitwriter_flush_BitWriter(BitWriter * bufobj, int *errno_valptr)
+int bitwriter_buffer_flush(BitWriter * bufobj, int *errno_valptr)
 {
-	if(0 != bufobj->bit_buffer_remain)
+	if(64 == bufobj->bit_buffer_remain)
 	{ return 0; }
 
-	#if __DUMP_DEBUG_MSG
-		fprintf(stderr, "INFO: flushing to memory block. @[%s:%d]\n", __FILE__, __LINE__);
-	#endif
-
-	*(bufobj->current_flush_ptr) = htobe64(bufobj->bit_buffer);
-
-	bufobj->current_flush_ptr++;;
-	bufobj->bit_buffer_remain = 64;
-	bufobj->bit_buffer = 0LL;
-
-	if( ((void *)(bufobj->current_flush_ptr)) >= ((void *)(bufobj->flush_block + BITWRITER_FLUSH_SIZE)) )
+	/* {{{ put existed bits */
+	if( (0 != bufobj->bit_buffer_remain) && (BITWRITER_BUFFER_WRITE_MODIFY == bufobj->buffer_write_mode) )
 	{
+		int max_readable;
+		uint64_t existed_value;
+
+		if( 8 > (max_readable = (int)(bufobj->blob_bound_ptr - bufobj->blob_current_ptr)) )
+		{
+			char *p;
+			char *q;
+			int i;
+
+			existed_value = 0LL;
+			p = (char *)(&existed_value);
+			q = (char *)(bufobj->blob_current_ptr);
+			for(i = 0; i < max_readable; i++) {
+				p[i] = q[i];
+			}
+		}
+		else
+		{ existed_value = *((uint64_t *)(bufobj->blob_current_ptr)); }
+
+		bufobj->bit_buffer = bufobj->bit_buffer | ( be64toh(existed_value) & ((1LL << bufobj->bit_buffer_remain) - 1LL) );
+	}
+	/* }}} put existed bits */
+
+	/* {{{ flush bitbuffer */
+	{
+		int byte_count;
+		uint64_t flush_buffer;
+
 		int ret;
 
-		if( -1 == (ret = write(bufobj->fd, bufobj->flush_block, BITWRITER_FLUSH_SIZE)) )
-		{
-			int errno_val;
+		byte_count = 8 - (bufobj->bit_buffer_remain / 8);
+		flush_buffer = htobe64(bufobj->bit_buffer);
 
-			*errno_valptr = (errno_val = errno);
-			__print_errno_string("ERR: cannot flush buffer to file", NULL, __FILE__, __LINE__, errno_val);	/* dump error message */
+		if( (8 == byte_count) && (
+			#if __LP64__ || __LP64
+				(0LL == ((uint64_t)(bufobj->blob_current_ptr) & 7LL))
+			#else
+				(0 == ((uint32_t)(bufobj->blob_current_ptr) & 7))
+			#endif
+			) && (8 == __bitwriter_check_write_exceed_region(bufobj, 8)) )
+		{
+			if(-1 == __bitwriter_expand_mmap(bufobj, 8, errno_valptr))
+			{
+				#if __DUMP_DEBUG_MSG
+					fprintf(stderr, "ERR: failed on expanding mmap. @[%s:%d]\n", __FILE__, __LINE__);
+				#endif
+				return -1;
+			}
+
+			*(uint64_t *)(bufobj->blob_current_ptr) = flush_buffer;
+			bufobj->blob_current_ptr += 8;
+
+			/* update farthest pointer */
+			if(bufobj->blob_current_ptr > bufobj->blob_farthest_ptr)
+			{ bufobj->blob_farthest_ptr = bufobj->blob_current_ptr; }
+
+			ret = 64;
+		}
+		else
+		{
+			if( -1 == (ret = bitwriter_write_bytes_on_byte_boundary(bufobj, (char *)(&flush_buffer), byte_count, 0, errno_valptr)) )
+			{
+				#if __DUMP_DEBUG_MSG
+					fprintf(stderr, "ERR: failed on writing buffer content. (byte_count=%d) @[%s:%d]\n", byte_count, __FILE__, __LINE__);
+				#endif
+				return -1;
+			}
 		}
 
-		bufobj->current_flush_ptr = (uint64_t *)(bufobj->flush_block);
-
-		#if __DUMP_DEBUG_MSG
-			fprintf(stderr, "INFO: flushed to file. (bytes=%d) @[%s:%d]\n", ret, __FILE__, __LINE__);
-		#endif
+		bufobj->bit_buffer_remain = 64;
+		bufobj->bit_buffer = 0LL;
 
 		return ret;
 	}
+	/* }}} flush bitbuffer */
 
-	return 0;
+	return -1;
 }
+
+
+
+/** 寫入指定的位元組
+ *
+ * Argument:
+ *    BitWriter *bufobj - BitWriter 物件
+ *    char * writting_value - 要寫入的值
+ *    int bytes_desire - 要寫入的位元組數
+ *    int flush_bit_buffer - 是否在寫出前清空 bit buffer 並填補到位元邊際
+ *    int *errno_valptr - 當錯誤時存放 errno 的變數的指標
+ *
+ * Return:
+ *    寫出的 bit 數，當異常時 (一般而言是在緩衝區滿寫入檔案時發生) 傳回 -1
+ * */
+int bitwriter_write_bytes_on_byte_boundary(BitWriter * bufobj, char *writting_value, int bytes_desire, int flush_bit_buffer, int *errno_valptr)
+{
+	if(0 != flush_bit_buffer)
+	{
+		if(-1 == bitwriter_buffer_flush(bufobj, errno_valptr))
+		{ return -1; }
+	}
+
+	/* {{{ check if exceed boundary */
+	if(NULL != bufobj->blob_regionbound_ptr)
+	{
+		if( (bufobj->blob_current_ptr + bytes_desire) > bufobj->blob_regionbound_ptr )
+		{ bytes_desire = (int)(bufobj->blob_regionbound_ptr - bufobj->blob_current_ptr); }
+	}
+	/* }}} check if exceed boundary */
+
+	if(bytes_desire <= 0)
+	{ return 0; }
+
+	if(-1 == __bitwriter_expand_mmap(bufobj, bytes_desire, errno_valptr))
+	{ return -1; }
+
+	memcpy(bufobj->blob_current_ptr, writting_value, bytes_desire);
+
+	bufobj->blob_current_ptr += bytes_desire;
+
+	/* update farthest pointer */
+	if(bufobj->blob_current_ptr > bufobj->blob_farthest_ptr)
+	{ bufobj->blob_farthest_ptr = bufobj->blob_current_ptr; }
+
+	return (bytes_desire * 8);
+}
+
 
 /** 寫入指定位元的整數值
  *
@@ -208,9 +475,6 @@ static int __bitwriter_flush_BitWriter(BitWriter * bufobj, int *errno_valptr)
 int bitwriter_write_integer_bits(BitWriter * bufobj, uint64_t writting_value, int bits_desire, int *errno_valptr)
 {
 	int bits_written;
-
-	if(-1 == __bitwriter_flush_BitWriter(bufobj, errno_valptr))
-	{ return -1; }
 
 	if( (64 == bufobj->bit_buffer_remain) && (64 == bits_desire) )	/* handling boundary case */
 	{
@@ -229,6 +493,16 @@ int bitwriter_write_integer_bits(BitWriter * bufobj, uint64_t writting_value, in
 		bits_countdown = bits_desire;
 		writting_bits = ( writting_value << (64 - bits_desire) );
 
+		/* {{{ refill bitbuffer when possible for alignment */
+		{
+			int refilled_bytes;
+			refilled_bytes = __bitwriter_fill_buffer_to_alignment(bufobj);
+			#if __DUMP_DEBUG_MSG
+				fprintf(stderr, "INFO: refilled bit buffer. (byte_count=%d) @[%s:%d]\n", refilled_bytes, __FILE__, __LINE__);
+			#endif
+		}
+		/* }}} refill bitbuffer when possible for alignment */
+
 		while(bits_countdown > 0) {
 			int buffer_remain;
 			int bits_this_round;
@@ -237,6 +511,15 @@ int bitwriter_write_integer_bits(BitWriter * bufobj, uint64_t writting_value, in
 
 			buffer_remain = bufobj->bit_buffer_remain;
 			bits_this_round = (bits_countdown < buffer_remain) ? bits_countdown : buffer_remain;
+
+			if(0 == buffer_remain)
+			{
+				if(-1 == bitwriter_buffer_flush(bufobj, errno_valptr))
+				{
+					__print_errno_string("ERR: failed on flush bitbuffer", NULL, __FILE__, __LINE__, *errno_valptr);	/* dump error message */
+					return -1;
+				}
+			}
 
 			going_to_write = (writting_bits >> (64 - buffer_remain)) & (((0x1LL << bits_this_round) - 1LL) << (buffer_remain - bits_this_round));
 			going_to_remain = writting_bits << bits_this_round;
@@ -248,9 +531,6 @@ int bitwriter_write_integer_bits(BitWriter * bufobj, uint64_t writting_value, in
 
 			bits_written += bits_this_round;
 			bits_countdown -= bits_this_round;
-
-			if(-1 == __bitwriter_flush_BitWriter(bufobj, errno_valptr))
-			{ return -1; }
 		}
 	}
 
@@ -327,9 +607,6 @@ int bitwriter_pad_to_byte(BitWriter * bufobj, int *errno_valptr)
 {
 	int bits_to_pad;
 
-	if(-1 == __bitwriter_flush_BitWriter(bufobj, errno_valptr))
-	{ return -1; }
-	
 	bits_to_pad = (bufobj->bit_buffer_remain) % 8;
 	
 	if(0 == bits_to_pad)	/* already at byte boundary */
