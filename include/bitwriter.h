@@ -60,6 +60,13 @@ int bitwriter_write_string_bits(BitWriter * bufobj, char * target_chars, int cha
 int bitwriter_pad_to_byte(BitWriter * bufobj, int *errno_valptr);
 
 
+void bitwriter_region_set_start(BitWriter *bufobj, int offset);
+
+void bitwriter_region_set_size(BitWriter *bufobj, int region_size);
+
+void bitwriter_region_clear(BitWriter *bufobj);
+
+
 
 #endif	/* #ifndef __YKX_BIT_WRITER_H__ */
 

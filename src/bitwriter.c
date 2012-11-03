@@ -632,6 +632,63 @@ int bitwriter_pad_to_byte(BitWriter * bufobj, int *errno_valptr)
 
 
 
+/** 設定寫出區域限制起點
+ *
+ * Argument:
+ *    BitWriter *bufobj - BitWriter 物件
+ *    int offset - 與目前位置的偏移量
+ * */
+void bitwriter_region_set_start(BitWriter *bufobj, int offset)
+{
+	void * p;
+
+	p = bufobj->blob_current_ptr + offset;
+
+	bufobj->blob_regionstart_ptr = ( (p >= bufobj->blob_start_ptr) && (p < bufobj->blob_bound_ptr) ) ? p : bufobj->blob_current_ptr;
+
+	return;
+}
+
+/** 設定寫出區域限制的大小，限制的範圍由起點起算至指定的大小之內
+ *
+ * Argument:
+ *    BitWriter *bufobj - BitWriter 物件
+ *    int region_size - 指定的大小 (byte 數), 當為 -1 時等同於延伸區域限制到資料塊的限制
+ * */
+void bitwriter_region_set_size(BitWriter *bufobj, int region_size)
+{
+	if(region_size > 0)
+	{
+		void * p;
+
+		p = bufobj->blob_regionstart_ptr + region_size;	/* compute new region pointer */
+		bufobj->blob_regionbound_ptr = (p > bufobj->blob_bound_ptr) ? bufobj->blob_bound_ptr : p;	/* use global bound as region bound if computed bound too large */
+
+		#if __DUMP_DEBUG_MSG
+			fprintf(stderr, "INFO: set region size (start=%p, bound=%p) @[%s:%d]\n", bufobj->blob_regionstart_ptr, bufobj->blob_regionbound_ptr, __FILE__, __LINE__);
+		#endif
+	}
+	else
+	{
+		bufobj->blob_regionbound_ptr = NULL;
+	}
+
+	return;
+}
+
+/** 清除寫出區域限制起點
+ *
+ * Argument:
+ *    BitWriter *bufobj - BitWriter 物件
+ * */
+void bitwriter_region_clear(BitWriter *bufobj)
+{
+	bufobj->blob_regionstart_ptr = bufobj->blob_current_ptr;
+	bufobj->blob_regionbound_ptr = NULL;
+}
+
+
+
 /*
 vim: ts=4 sw=4 ai nowrap
 */
