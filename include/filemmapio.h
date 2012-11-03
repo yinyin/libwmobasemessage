@@ -22,7 +22,7 @@ void * open_file_write_mmap(const char * filename, int * fd_ptr, uint32_t * orig
 
 void * expand_file_write_mmap(void * mmap_ptr, int * fd_ptr, uint32_t * expanded_filesize_ptr, uint32_t target_filesize, int * errno_valptr);
 
-void close_file_write_mmap(void * mmap_ptr, int * fd_ptr, uint32_t * origional_filesize_ptr, uint32_t * expanded_filesize_ptr, uint32_t actual_filesize);
+int close_file_write_mmap(void * mmap_ptr, int * fd_ptr, uint32_t * origional_filesize_ptr, uint32_t * expanded_filesize_ptr, uint32_t actual_filesize, int * errno_valptr);
 
 
 #endif	/* #ifndef __YKX_FILE_MMAP_IO__ */

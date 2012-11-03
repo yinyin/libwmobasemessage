@@ -359,7 +359,7 @@ void * expand_file_write_mmap(void * mmap_ptr, int * fd_ptr, uint32_t * expanded
  * Return:
  *  0 當正常結束時，或是 -1 當有異常發生時
  * */
-void close_file_write_mmap(void * mmap_ptr, int * fd_ptr, uint32_t * origional_filesize_ptr, uint32_t * expanded_filesize_ptr, uint32_t actual_filesize, int * errno_valptr)
+int close_file_write_mmap(void * mmap_ptr, int * fd_ptr, uint32_t * origional_filesize_ptr, uint32_t * expanded_filesize_ptr, uint32_t actual_filesize, int * errno_valptr)
 {
 	int fd;
 	int retcode;
