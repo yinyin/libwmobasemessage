@@ -179,7 +179,7 @@ int64_t bitwriter_get_current_offset(BitWriter *bufobj)
  *    -1 - 寫出緩衝時發生錯誤
  *    -2 - 偏移量為負數
  * */
-int bitreader_set_current_offset(BitWriter *bufobj, int64_t offset, int flush_buffer, int *errno_valptr)
+int bitwriter_set_current_offset(BitWriter *bufobj, int64_t offset, int flush_buffer, int *errno_valptr)
 {
 	void *proposed_pointer;
 

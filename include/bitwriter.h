@@ -46,7 +46,7 @@ int bitwriter_close(BitWriter *bufobj, int *errno_valptr);
 
 int64_t bitwriter_get_current_offset(BitWriter *bufobj);
 
-int bitreader_set_current_offset(BitWriter *bufobj, int64_t offset, int flush_buffer, int *errno_valptr);
+int bitwriter_set_current_offset(BitWriter *bufobj, int64_t offset, int flush_buffer, int *errno_valptr);
 
 
 int bitwriter_buffer_flush(BitWriter * bufobj, int *errno_valptr);
