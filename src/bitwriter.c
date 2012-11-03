@@ -14,6 +14,7 @@
 
 
 #define __DUMP_DEBUG_MSG 1
+#define __DUMP_DEBUG_MSG_DETAIL 0
 #include "debug_msg_dump.h"
 
 
@@ -110,7 +111,7 @@ int bitwriter_close(BitWriter *bufobj, int *errno_valptr)
 	{
 		int flushed_bit_count;
 
-		if( -1 == (flushed_bit_count = bitwriter_buffer_flush(bufobj, errno_valptr)) )
+		if( 0 > (flushed_bit_count = bitwriter_buffer_flush(bufobj, errno_valptr)) )
 		{
 			__print_errno_string("ERR: failed on flush buffer", NULL, __FILE__, __LINE__, *errno_valptr);	/* dump error message */
 			retcode -= 65536;
@@ -288,7 +289,9 @@ static int __bitwriter_fill_buffer_to_alignment(BitWriter * bufobj)
 	if(64 != bufobj->bit_buffer_remain)
 	{ return 0; }
 
-	fprintf(stderr, "INFO: remained bitbuffer (buffer_remain=%d).\n", bufobj->bit_buffer_remain);
+	#if __DUMP_DEBUG_MSG_DETAIL
+		fprintf(stderr, "INFO: remained bitbuffer (buffer_remain=%d).\n", bufobj->bit_buffer_remain);
+	#endif
 
 	#if __LP64__ || __LP64
 	fraction = (int)((uint64_t)(bufobj->blob_current_ptr) & 7LL);
@@ -299,7 +302,7 @@ static int __bitwriter_fill_buffer_to_alignment(BitWriter * bufobj)
 	if(0 == fraction)
 	{ return 0; }
 
-	if( bufobj->blob_start_ptr > (bufobj->blob_current_ptr - fraction) )
+	if( bufobj->blob_regionstart_ptr > (bufobj->blob_current_ptr - fraction) )
 	{ return -1; }
 
 	if( (bufobj->blob_current_ptr - fraction + 8) > bufobj->blob_bound_ptr )
@@ -324,12 +327,17 @@ static int __bitwriter_fill_buffer_to_alignment(BitWriter * bufobj)
  *    int *errno_valptr - 當錯誤時存放 errno 的變數的指標
  *
  * Return:
- *    寫出的 bit 數，或是 -1 當異常時
+ *    >=0 寫出的 bit 數
+ *    -1  當 I/O 異常時
+ *    -2  當在 region 外起始寫入作業
  * */
 int bitwriter_buffer_flush(BitWriter * bufobj, int *errno_valptr)
 {
 	if(64 == bufobj->bit_buffer_remain)
 	{ return 0; }
+
+	if(bufobj->blob_current_ptr < bufobj->blob_regionstart_ptr)
+	{ return -2; }
 
 	/* {{{ put existed bits */
 	if( (0 != bufobj->bit_buffer_remain) && (BITWRITER_BUFFER_WRITE_MODIFY == bufobj->buffer_write_mode) )
@@ -375,7 +383,7 @@ int bitwriter_buffer_flush(BitWriter * bufobj, int *errno_valptr)
 			#endif
 			) && (8 == __bitwriter_check_write_exceed_region(bufobj, 8)) )
 		{
-			if(-1 == __bitwriter_expand_mmap(bufobj, 8, errno_valptr))
+			if(0 > __bitwriter_expand_mmap(bufobj, 8, errno_valptr))
 			{
 				#if __DUMP_DEBUG_MSG
 					fprintf(stderr, "ERR: failed on expanding mmap. @[%s:%d]\n", __FILE__, __LINE__);
@@ -394,12 +402,12 @@ int bitwriter_buffer_flush(BitWriter * bufobj, int *errno_valptr)
 		}
 		else
 		{
-			if( -1 == (ret = bitwriter_write_bytes_on_byte_boundary(bufobj, (char *)(&flush_buffer), byte_count, 0, errno_valptr)) )
+			if( 0 > (ret = bitwriter_write_bytes_on_byte_boundary(bufobj, (char *)(&flush_buffer), byte_count, 0, errno_valptr)) )
 			{
 				#if __DUMP_DEBUG_MSG
-					fprintf(stderr, "ERR: failed on writing buffer content. (byte_count=%d) @[%s:%d]\n", byte_count, __FILE__, __LINE__);
+					fprintf(stderr, "ERR: failed on writing buffer content. (byte_count=%d, ret=%d) @[%s:%d]\n", byte_count, ret, __FILE__, __LINE__);
 				#endif
-				return -1;
+				return ret;
 			}
 		}
 
@@ -425,14 +433,17 @@ int bitwriter_buffer_flush(BitWriter * bufobj, int *errno_valptr)
  *    int *errno_valptr - 當錯誤時存放 errno 的變數的指標
  *
  * Return:
- *    寫出的 bit 數，當異常時 (一般而言是在緩衝區滿寫入檔案時發生) 傳回 -1
+ *    >=0 寫出的 bit 數
+ *    -1  當 I/O 異常時 (一般而言是在緩衝區滿寫入檔案時發生)
+ *    -2  當在 region 外起始寫入作業
  * */
 int bitwriter_write_bytes_on_byte_boundary(BitWriter * bufobj, char *writting_value, int bytes_desire, int flush_bit_buffer, int *errno_valptr)
 {
 	if(0 != flush_bit_buffer)
 	{
-		if(-1 == bitwriter_buffer_flush(bufobj, errno_valptr))
-		{ return -1; }
+		int ret;
+		if( 0 > (ret = bitwriter_buffer_flush(bufobj, errno_valptr)) )
+		{ return ret; }
 	}
 
 	/* {{{ check if exceed boundary */
@@ -441,12 +452,15 @@ int bitwriter_write_bytes_on_byte_boundary(BitWriter * bufobj, char *writting_va
 		if( (bufobj->blob_current_ptr + bytes_desire) > bufobj->blob_regionbound_ptr )
 		{ bytes_desire = (int)(bufobj->blob_regionbound_ptr - bufobj->blob_current_ptr); }
 	}
+
+	if(bufobj->blob_current_ptr < bufobj->blob_regionstart_ptr)
+	{ return -2; }
 	/* }}} check if exceed boundary */
 
 	if(bytes_desire <= 0)
 	{ return 0; }
 
-	if(-1 == __bitwriter_expand_mmap(bufobj, bytes_desire, errno_valptr))
+	if(0 > __bitwriter_expand_mmap(bufobj, bytes_desire, errno_valptr))
 	{ return -1; }
 
 	memcpy(bufobj->blob_current_ptr, writting_value, bytes_desire);
@@ -514,10 +528,11 @@ int bitwriter_write_integer_bits(BitWriter * bufobj, uint64_t writting_value, in
 
 			if(0 == buffer_remain)
 			{
-				if(-1 == bitwriter_buffer_flush(bufobj, errno_valptr))
+				int ret;
+				if( 0 > (ret = bitwriter_buffer_flush(bufobj, errno_valptr)) )
 				{
 					__print_errno_string("ERR: failed on flush bitbuffer", NULL, __FILE__, __LINE__, *errno_valptr);	/* dump error message */
-					return -1;
+					return ret;
 				}
 			}
 
