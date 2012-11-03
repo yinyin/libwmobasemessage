@@ -353,42 +353,60 @@ void * expand_file_write_mmap(void * mmap_ptr, int * fd_ptr, uint32_t * expanded
  * 	int * fd_ptr - 指向存放 file descriptor 的變數的指標
  * 	uint32_t * origional_filesize_ptr - 指向要儲存原始檔案大小的變數的指標
  * 	uint32_t * expanded_filesize_ptr - 指向要儲存擴展檔案大小的變數的指標
- *  uint32_t actual_filesize - 實際檔案應有的大小
+ * 	uint32_t actual_filesize - 實際檔案應有的大小
+ * 	int * errno_valptr - 指向要儲存 ERRNO 值的變數的指標
+ *
+ * Return:
+ *  0 當正常結束時，或是 -1 當有異常發生時
  * */
-void close_file_write_mmap(void * mmap_ptr, int * fd_ptr, uint32_t * origional_filesize_ptr, uint32_t * expanded_filesize_ptr, uint32_t actual_filesize)
+void close_file_write_mmap(void * mmap_ptr, int * fd_ptr, uint32_t * origional_filesize_ptr, uint32_t * expanded_filesize_ptr, uint32_t actual_filesize, int * errno_valptr)
 {
 	int fd;
+	int retcode;
 
 	fd = *fd_ptr;
+	retcode = 0;
+	*errno_valptr = 0;
 
 	/* {{{ close file */
 	if(-1 == msync(mmap_ptr, (size_t)(*expanded_filesize_ptr), MS_SYNC))
 	{
 		int errno_val;
-		errno_val = errno;
+		*errno_valptr = (errno_val = errno);
 		__print_errno_string("ERR: cannot perform file msync", NULL, __FILE__, __LINE__, errno_val);	/* dump error message */
+		retcode -= 1;
 	}
 
 	if(-1 == munmap(mmap_ptr, (size_t)(*expanded_filesize_ptr)))
 	{
 		int errno_val;
-		errno_val = errno;
+		*errno_valptr = (errno_val = errno);
 		__print_errno_string("ERR: cannot perform file unmapping", NULL, __FILE__, __LINE__, errno_val);	/* dump error message */
+		retcode -= 2;
 	}
 
 	if(-1 == ftruncate(fd, (off_t)(actual_filesize)))
 	{
 		int errno_val;
-		errno_val = errno;
+		*errno_valptr = (errno_val = errno);
 		__print_errno_string("ERR: cannot perform f-truncate on closing", NULL, __FILE__, __LINE__, errno_val);	/* dump error message */
+		retcode -= 4;
 	}
 
-	close(fd);
+	if(-1 == close(fd))
+	{
+		int errno_val;
+		*errno_valptr = (errno_val = errno);
+		__print_errno_string("ERR: failed on closing file descriptor", NULL, __FILE__, __LINE__, errno_val);	/* dump error message */
+		retcode -= 8;
+	}
 	/* }}} close file */
 
 	*fd_ptr = 0;
 	*origional_filesize_ptr = 0;
 	*expanded_filesize_ptr = 0;
+
+	return retcode;
 }
 
 
