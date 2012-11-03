@@ -329,7 +329,7 @@ static int __bitwriter_fill_buffer_to_alignment(BitWriter * bufobj)
  * Return:
  *    >=0 寫出的 bit 數
  *    -1  當 I/O 異常時
- *    -2  當在 region 外起始寫入作業
+ *    -32 當在 region 外起始寫入作業
  * */
 int bitwriter_buffer_flush(BitWriter * bufobj, int *errno_valptr)
 {
@@ -337,7 +337,7 @@ int bitwriter_buffer_flush(BitWriter * bufobj, int *errno_valptr)
 	{ return 0; }
 
 	if(bufobj->blob_current_ptr < bufobj->blob_regionstart_ptr)
-	{ return -2; }
+	{ return -32; }
 
 	/* {{{ put existed bits */
 	if( (0 != bufobj->bit_buffer_remain) && (BITWRITER_BUFFER_WRITE_MODIFY == bufobj->buffer_write_mode) )
@@ -435,7 +435,7 @@ int bitwriter_buffer_flush(BitWriter * bufobj, int *errno_valptr)
  * Return:
  *    >=0 寫出的 bit 數
  *    -1  當 I/O 異常時 (一般而言是在緩衝區滿寫入檔案時發生)
- *    -2  當在 region 外起始寫入作業
+ *    -32 當在 region 外起始寫入作業
  * */
 int bitwriter_write_bytes_on_byte_boundary(BitWriter * bufobj, char *writting_value, int bytes_desire, int flush_bit_buffer, int *errno_valptr)
 {
@@ -454,7 +454,7 @@ int bitwriter_write_bytes_on_byte_boundary(BitWriter * bufobj, char *writting_va
 	}
 
 	if(bufobj->blob_current_ptr < bufobj->blob_regionstart_ptr)
-	{ return -2; }
+	{ return -32; }
 	/* }}} check if exceed boundary */
 
 	if(bytes_desire <= 0)
@@ -599,7 +599,7 @@ int bitwriter_write_string_bits(BitWriter * bufobj, char * target_chars, int cha
 		aux_bits = ((uint64_t)(*char_storage_ptr)) & 0xFFLL;
 		
 		if(0 > (ret = bitwriter_write_integer_bits(bufobj, aux_bits, char_bits, errno_valptr)))
-		{ return -4; }
+		{ return ((-32 == ret) ? -32 : -4); }
 		
 		char_storage_ptr++;
 		char_write_count--;
