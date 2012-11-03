@@ -14,7 +14,7 @@
 
 
 #define __DUMP_DEBUG_MSG 1
-#define __DUMP_DEBUG_MSG_DETAIL 0
+#define __DUMP_DEBUG_MSG_DETAIL 1
 #include "debug_msg_dump.h"
 
 
@@ -490,6 +490,20 @@ int bitwriter_write_integer_bits(BitWriter * bufobj, uint64_t writting_value, in
 {
 	int bits_written;
 
+	#if __DUMP_DEBUG_MSG_DETAIL
+		fprintf(stderr, "INFO: writing integer bits. (writting_value=0x%016llX, bits_desire=%d, buffer_remain=%d) @[%s:%d]\n", writting_value, bits_desire, bufobj->bit_buffer_remain, __FILE__, __LINE__);
+	#endif
+
+	if(0 == bufobj->bit_buffer_remain)
+	{
+		int ret;
+		if( 0 > (ret = bitwriter_buffer_flush(bufobj, errno_valptr)) )
+		{
+			__print_errno_string("ERR: failed on flush bitbuffer", NULL, __FILE__, __LINE__, *errno_valptr);	/* dump error message */
+			return ret;
+		}
+	}
+
 	if( (64 == bufobj->bit_buffer_remain) && (64 == bits_desire) )	/* handling boundary case */
 	{
 		bufobj->bit_buffer = writting_value;
@@ -511,7 +525,7 @@ int bitwriter_write_integer_bits(BitWriter * bufobj, uint64_t writting_value, in
 		{
 			int refilled_bytes;
 			refilled_bytes = __bitwriter_fill_buffer_to_alignment(bufobj);
-			#if __DUMP_DEBUG_MSG
+			#if __DUMP_DEBUG_MSG_DETAIL
 				fprintf(stderr, "INFO: refilled bit buffer. (byte_count=%d) @[%s:%d]\n", refilled_bytes, __FILE__, __LINE__);
 			#endif
 		}
@@ -526,16 +540,6 @@ int bitwriter_write_integer_bits(BitWriter * bufobj, uint64_t writting_value, in
 			buffer_remain = bufobj->bit_buffer_remain;
 			bits_this_round = (bits_countdown < buffer_remain) ? bits_countdown : buffer_remain;
 
-			if(0 == buffer_remain)
-			{
-				int ret;
-				if( 0 > (ret = bitwriter_buffer_flush(bufobj, errno_valptr)) )
-				{
-					__print_errno_string("ERR: failed on flush bitbuffer", NULL, __FILE__, __LINE__, *errno_valptr);	/* dump error message */
-					return ret;
-				}
-			}
-
 			going_to_write = (writting_bits >> (64 - buffer_remain)) & (((0x1LL << bits_this_round) - 1LL) << (buffer_remain - bits_this_round));
 			going_to_remain = writting_bits << bits_this_round;
 
@@ -546,6 +550,20 @@ int bitwriter_write_integer_bits(BitWriter * bufobj, uint64_t writting_value, in
 
 			bits_written += bits_this_round;
 			bits_countdown -= bits_this_round;
+
+			if(0 == bufobj->bit_buffer_remain)
+			{
+				int ret;
+				if( 0 > (ret = bitwriter_buffer_flush(bufobj, errno_valptr)) )
+				{
+					__print_errno_string("ERR: failed on flush bitbuffer", NULL, __FILE__, __LINE__, *errno_valptr);	/* dump error message */
+					return ret;
+				}
+			}
+
+			#if __DUMP_DEBUG_MSG_DETAIL
+				fprintf(stderr, "INFO: finished 1 iter. (written=0x%016llX, remain=0x%016llX, bits_written=%d, bits_countdown=%d) @[%s:%d]\n", going_to_write, going_to_remain, bits_written, bits_countdown, __FILE__, __LINE__);
+			#endif
 		}
 	}
 
