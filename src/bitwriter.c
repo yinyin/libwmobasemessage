@@ -289,14 +289,14 @@ static int __bitwriter_fill_buffer_to_alignment(BitWriter * bufobj)
 	if(64 != bufobj->bit_buffer_remain)
 	{ return 0; }
 
-	#if __DUMP_DEBUG_MSG_DETAIL
-		fprintf(stderr, "INFO: remained bitbuffer (buffer_remain=%d).\n", bufobj->bit_buffer_remain);
-	#endif
-
 	#if __LP64__ || __LP64
 	fraction = (int)((uint64_t)(bufobj->blob_current_ptr) & 7LL);
 	#else
 	fraction = (int)((uint32_t)(bufobj->blob_current_ptr) & 7L);
+	#endif
+
+	#if __DUMP_DEBUG_MSG_DETAIL
+		fprintf(stderr, "INFO: refill bitbuffer (buffer_remain=%d, fraction=%d, regionstart_p=%p, current_p=%p, bound_p=%p).\n", bufobj->bit_buffer_remain, fraction, bufobj->blob_regionstart_ptr, bufobj->blob_current_ptr, bufobj->blob_bound_ptr);
 	#endif
 
 	if(0 == fraction)
