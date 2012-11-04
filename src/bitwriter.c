@@ -337,7 +337,16 @@ int bitwriter_buffer_flush(BitWriter * bufobj, int *errno_valptr)
 	{ return 0; }
 
 	if(bufobj->blob_current_ptr < bufobj->blob_regionstart_ptr)
-	{ return -32; }
+	{
+		#if __DUMP_DEBUG_MSG
+			fprintf(stderr, "ERR: cannot flush buffer above region start. (regionstart_p=%p, current_p=%p, buffer_remain=%d, buffer=0x%016llX) @[%s:%d]\n", bufobj->blob_regionstart_ptr, bufobj->blob_current_ptr, bufobj->bit_buffer_remain, bufobj->bit_buffer, __FILE__, __LINE__);
+		#endif
+		/* {{{ clear buffer even on error */
+		bufobj->bit_buffer_remain = 64;
+		bufobj->bit_buffer = 0LL;
+		/* }}} clear buffer even on error */
+		return -32;
+	}
 
 	/* {{{ put existed bits */
 	if( (0 != bufobj->bit_buffer_remain) && (BITWRITER_BUFFER_WRITE_MODIFY == bufobj->buffer_write_mode) )
