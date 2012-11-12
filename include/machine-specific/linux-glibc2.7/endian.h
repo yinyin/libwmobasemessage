@@ -19,7 +19,9 @@
 #define __BIG_ENDIAN    0x76543210
 
 /* get machine dependent __BYTE_ORDER definition from system header */
+#define _ENDIAN_H 1
 #include <bits/endian.h>
+#undef _ENDIAN_H
 
 
 #include <byteswap.h>
