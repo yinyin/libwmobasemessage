@@ -339,7 +339,7 @@ int bitwriter_buffer_flush(BitWriter * bufobj, int *errno_valptr)
 	if(bufobj->blob_current_ptr < bufobj->blob_regionstart_ptr)
 	{
 		#if __DUMP_DEBUG_MSG
-			fprintf(stderr, "ERR: cannot flush buffer above region start. (regionstart_p=%p, current_p=%p, buffer_remain=%d, buffer=0x%016llX) @[%s:%d]\n", bufobj->blob_regionstart_ptr, bufobj->blob_current_ptr, bufobj->bit_buffer_remain, bufobj->bit_buffer, __FILE__, __LINE__);
+			fprintf(stderr, "ERR: cannot flush buffer above region start. (regionstart_p=%p, current_p=%p, buffer_remain=%d, buffer=0x%016llX) @[%s:%d]\n", bufobj->blob_regionstart_ptr, bufobj->blob_current_ptr, bufobj->bit_buffer_remain, (long long unsigned int)(bufobj->bit_buffer), __FILE__, __LINE__);
 		#endif
 		/* {{{ clear buffer even on error */
 		bufobj->bit_buffer_remain = 64;
@@ -500,7 +500,7 @@ int bitwriter_write_integer_bits(BitWriter * bufobj, uint64_t writting_value, in
 	int bits_written;
 
 	#if __DUMP_DEBUG_MSG_DETAIL
-		fprintf(stderr, "INFO: writing integer bits. (writting_value=0x%016llX, bits_desire=%d, buffer_remain=%d) @[%s:%d]\n", writting_value, bits_desire, bufobj->bit_buffer_remain, __FILE__, __LINE__);
+		fprintf(stderr, "INFO: writing integer bits. (writting_value=0x%016llX, bits_desire=%d, buffer_remain=%d) @[%s:%d]\n", (long long unsigned int)(writting_value), bits_desire, bufobj->bit_buffer_remain, __FILE__, __LINE__);
 	#endif
 
 	if(0 == bufobj->bit_buffer_remain)
@@ -571,7 +571,7 @@ int bitwriter_write_integer_bits(BitWriter * bufobj, uint64_t writting_value, in
 			}
 
 			#if __DUMP_DEBUG_MSG_DETAIL
-				fprintf(stderr, "INFO: finished 1 iter. (written=0x%016llX, remain=0x%016llX, bits_written=%d, bits_countdown=%d) @[%s:%d]\n", going_to_write, going_to_remain, bits_written, bits_countdown, __FILE__, __LINE__);
+				fprintf(stderr, "INFO: finished 1 iter. (written=0x%016llX, remain=0x%016llX, bits_written=%d, bits_countdown=%d) @[%s:%d]\n", (long long unsigned int)(going_to_write), (long long unsigned int)(going_to_remain), bits_written, bits_countdown, __FILE__, __LINE__);
 			#endif
 		}
 	}
