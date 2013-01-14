@@ -116,7 +116,7 @@ int bitwriter_close(BitWriter *bufobj, int *errno_valptr)
 			__print_errno_string("ERR: failed on flush buffer", NULL, __FILE__, __LINE__, *errno_valptr);	/* dump error message */
 			retcode -= 65536;
 		}
-		
+
 		#if __DUMP_DEBUG_MSG
 			fprintf(stderr, "INFO: flushing to memory. (bits=%d) @[%s:%d]\n", flushed_bit_count, __FILE__, __LINE__);
 		#endif
@@ -127,9 +127,9 @@ int bitwriter_close(BitWriter *bufobj, int *errno_valptr)
 	{
 		int ret;
 		uint32_t actual_filesize;
-		
+
 		actual_filesize = (uint32_t)(bufobj->blob_farthest_ptr - bufobj->blob_start_ptr);
-		
+
 		if( 0 > (ret = close_file_write_mmap(bufobj->blob_start_ptr, &bufobj->blob_fd, &bufobj->orig_filesize, &bufobj->expd_filesize, actual_filesize, errno_valptr)) )
 		{
 			__print_errno_string("ERR: failed on closing file", NULL, __FILE__, __LINE__, *errno_valptr);	/* dump error message */
@@ -157,11 +157,21 @@ int bitwriter_close(BitWriter *bufobj, int *errno_valptr)
  * Return:
  *    偏移量
  * */
-int64_t bitwriter_get_current_offset(BitWriter *bufobj)
+int64_t bitwriter_get_current_offset(BitWriter *bufobj, int is_consider_buffer)
 {
 	int64_t offset;
 
 	offset = (int64_t)(bufobj->blob_current_ptr - bufobj->blob_start_ptr);
+
+	if(0 != is_consider_buffer)
+	{
+		int r;
+
+		r = (64 - bufobj->bit_buffer_remain);
+		r = (r >> 3) + ((0 == (r & 0x7)) ? 0 : 1);
+
+		offset += ((int64_t)(r));
+	}
 
 	return offset;
 }
@@ -227,23 +237,23 @@ static int __bitwriter_expand_mmap(BitWriter * bufobj, int size_to_write, int *e
 			__print_errno_string("ERR: cannot expand mmap", NULL, __FILE__, __LINE__, *errno_valptr);	/* dump error message */
 			return -1;
 		}
-		
+
 		if(new_map != bufobj->blob_start_ptr)
 		{
 			bufobj->blob_current_ptr = new_map + (size_t)(bufobj->blob_current_ptr - bufobj->blob_start_ptr);
 			bufobj->blob_farthest_ptr = new_map + (size_t)(bufobj->blob_farthest_ptr - bufobj->blob_start_ptr);
-			
+
 			bufobj->blob_regionstart_ptr = new_map + (size_t)(bufobj->blob_regionstart_ptr - bufobj->blob_start_ptr);
 			if(NULL != bufobj->blob_regionbound_ptr)
 			{ bufobj->blob_regionbound_ptr = new_map + (size_t)(bufobj->blob_regionbound_ptr - bufobj->blob_start_ptr); }
-			
+
 			bufobj->blob_start_ptr = new_map;
 		}
-		
+
 		bufobj->blob_bound_ptr = bufobj->blob_start_ptr + (size_t)(bufobj->expd_filesize);
 	}
 	/* }}} perform mmap expand and relocate pointers in structure */
-	
+
 	return 0;
 }
 
@@ -595,43 +605,43 @@ int bitwriter_write_string_bits(BitWriter * bufobj, char * target_chars, int cha
 {
 	int char_write_count;
 	char * char_storage_ptr;
-	
+
 	if( (char_count < 0) || (char_bits < 0) || (char_bits > 64) )
 	{ return -2; }
-	
+
 	char_write_count = char_count;
 	char_storage_ptr = target_chars;
-	
+
 	if(8 == char_bits)
 	{
 		while(8 <= char_write_count) {
 			uint64_t aux_bits;
 			int ret;
-			
+
 			aux_bits = *((uint64_t *)(char_storage_ptr));
 			aux_bits = be64toh(aux_bits);
-			
+
 			if(0 > (ret = bitwriter_write_integer_bits(bufobj, aux_bits, 64, errno_valptr)))
 			{ return -3; }
-			
+
 			char_storage_ptr += 8;
 			char_write_count -= 8;
 		}
 	}
-	
+
 	while(char_write_count > 0) {
 		uint64_t aux_bits;
 		int ret;
-		
+
 		aux_bits = ((uint64_t)(*char_storage_ptr)) & 0xFFLL;
-		
+
 		if(0 > (ret = bitwriter_write_integer_bits(bufobj, aux_bits, char_bits, errno_valptr)))
 		{ return ((-32 == ret) ? -32 : -4); }
-		
+
 		char_storage_ptr++;
 		char_write_count--;
 	}
-	
+
 	return char_count;
 }
 
@@ -650,10 +660,10 @@ int bitwriter_pad_to_byte(BitWriter * bufobj, int *errno_valptr)
 	int bits_to_pad;
 
 	bits_to_pad = (bufobj->bit_buffer_remain) % 8;
-	
+
 	if(0 == bits_to_pad)	/* already at byte boundary */
 	{ return 0; }
-	
+
 	return bitwriter_write_integer_bits(bufobj, 0LL, bits_to_pad, errno_valptr);
 }
 
