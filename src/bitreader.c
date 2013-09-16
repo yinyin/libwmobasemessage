@@ -531,6 +531,20 @@ void bitreader_region_set_size(BitReader *inst, int region_size)
 	return;
 }
 
+/** 取得讀取區域限制的大小
+ *
+ * Argument:
+ *    BitReader *inst - BitReader 物件
+ * Return:
+ *    目前所設定限制區域的大小
+ * */
+int bitreader_region_get_size(BitReader *inst)
+{
+	int result;
+	result = (int)(inst->blob_regionbound_ptr - inst->blob_regionstart_ptr);
+	return result;
+}
+
 /** 清除讀取區域限制起點
  *
  * Argument:
