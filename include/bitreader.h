@@ -52,6 +52,7 @@ int bitreader_read_line(BitReader *inst, char * result_chars, int char_limit);
 void bitreader_region_set_start(BitReader *inst, int offset);
 
 void bitreader_region_set_size(BitReader *inst, int region_size);
+int bitreader_region_get_size(BitReader *inst);
 
 void bitreader_region_clear(BitReader *inst);
 
