@@ -7,7 +7,7 @@
 #include "bitreader.h"
 
 
-#define __DUMP_DEBUG_MSG 1
+#define __DUMP_DEBUG_MSG 0
 #define __DUMP_DEBUG_MSG_DETAIL 0
 
 

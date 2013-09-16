@@ -13,8 +13,8 @@
 #include "bitwriter.h"
 
 
-#define __DUMP_DEBUG_MSG 1
-#define __DUMP_DEBUG_MSG_DETAIL 1
+#define __DUMP_DEBUG_MSG 0
+#define __DUMP_DEBUG_MSG_DETAIL 0
 #include "debug_msg_dump.h"
 
 
