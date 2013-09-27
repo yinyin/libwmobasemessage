@@ -620,9 +620,9 @@ void * search_ETX_signal(void * start, void * bound)
 
 	current_state = 0;
 	p = start;
-	while(p < bound) {
+	while(p < (char *)(bound)) {
 		char input_ch;
-		char input_val;
+		int input_val;
 
 		input_ch = *p;
 		p++;
