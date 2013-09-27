@@ -534,6 +534,113 @@ void * search_bufr_identification(void * start, void * bound)
 
 
 
+/* {{{ search ETX --------------------------------------------------- */
+
+#define _EVALETX_INPUT_CR 0
+#define _EVALETX_INPUT_LF 1
+#define _EVALETX_INPUT_ETX 2
+
+#define _EVALETX_STATE_END 3
+
+/* {{{ status transition table
+--------
+import re
+
+IN_MAP = {'CR': 0, 'LF': 1, 'ETX': 2,}
+
+x = """
+ 0 CR 1
+ 1 LF 2
+ 2 ETX 3
+ 3 =END-STATE
+"""
+
+max_state = 3
+max_input = 2
+
+r = re.compile("\s*([0-9]+)\s+([A-Z][A-Z0-9]*)\s+([0-9]+)\s*")
+result = [ [0 for i in range(1+max_state)] for j in range(1+max_input) ]
+
+for l in x.split("\n"):
+	m = r.match(l)
+	if m is not None:
+		try:
+			xf = int(m.group(1))
+			xt = int(m.group(3))
+			in_symb = m.group(2)
+			in_v = IN_MAP[in_symb]
+			result[in_v][xf] = xt
+		except Exception as e:
+			print ">>> line = %r" % (l,)
+			raise e
+
+for in_v in range(1+max_input):
+	print "\t{", ", ".join([ ("%2d"%xt) for xt in result[in_v] ]), "},"
+
+--------
+}}} */
+
+static int _ETX_SIGNAL_SEARCHING_TBL[3][4] = {
+	{  1,  0,  0,  0 },
+	{  0,  2,  0,  0 },
+	{  0,  0,  3,  0 }
+};
+
+static int __translate_input_for_search_ETX_signal(char input_ch)
+{
+	int input_val;
+
+	input_val = -1;
+
+	if( (char)(0x0D) == input_ch )
+	{ input_val = _EVALETX_INPUT_CR; }
+	else if( (char)(0x0A) == input_ch )
+	{ input_val = _EVALETX_INPUT_LF; }
+	else if( (char)(0x03) == input_ch )
+	{ input_val = _EVALETX_INPUT_ETX; }
+
+	#if __DUMP_DEBUG_MSG
+		fprintf(stderr, ">> ... INPUT_CHAR=0x%02X, VAL=%d [@%s:%d]\n", input_ch, input_val, __FILE__, __LINE__);
+	#endif	/* __DUMP_DEBUG_MSG */
+
+	return input_val;
+}
+
+/** 在指定的資料流範圍中找尋 ETX 終止符號
+ * 依據 WMO 386 規範 (WMO Manual on the Global Telecommunication System, Part-2 Operational Procedures for the GTS, 2.3.4)
+ *
+ * Argument:
+ * 	void * start - 起點指標
+ * 	void * bound - 終點指標
+ * */
+void * search_ETX_signal(void * start, void * bound)
+{
+	int current_state;
+	char * p;
+
+	current_state = 0;
+	p = start;
+	while(p < bound) {
+		char input_ch;
+		char input_val;
+
+		input_ch = *p;
+		p++;
+
+		input_val = __translate_input_for_search_ETX_signal(input_ch);
+		current_state = (-1 == input_val) ? 0 : _ETX_SIGNAL_SEARCHING_TBL[input_val][current_state];
+
+		if(_EVALETX_STATE_END == current_state)
+		{ return p; }
+	}
+
+	return NULL;
+}
+
+/* }}} search ETX --------------------------------------------------- */
+
+
+
 /*
 vim: ts=4 sw=4 ai nowrap
 */
